@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DUVERO | Global Freight & Logistics</title>
+<meta name="description" content="DUVERO Global Freight & Logistics. Flexible sea, air, road, warehousing and customs solutions built around your business.">
+<meta name="theme-color" content="#07344a">
+<meta property="og:title" content="DUVERO | Global Freight & Logistics">
+<meta property="og:description" content="People move the world. We keep it in motion.">
+<link rel="icon" href="assets/favicon.svg"><link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="header">
+<a href="#home" class="logo"><img src="assets/logo.svg" alt="DUVERO Global Freight & Logistics"></a>
+<button class="hamb" aria-label="Open menu" aria-expanded="false">☰</button>
+<nav id="nav">
+<a href="#services" data-i18n="navServices">Services</a><a href="#about" data-i18n="navAbout">About us</a>
+<a href="#why" data-i18n="navWhy">Why DUVERO</a><a href="#contact" data-i18n="navContact">Contact</a>
+<button class="lang" id="lang">DA</button>
+</nav>
+<a class="btn headbtn" href="#quote" data-i18n="quote">Get a quote</a>
+</header>
+
+<main>
+<section class="hero" id="home">
+<div class="hero-art"><div class="route r1"></div><div class="route r2"></div><div class="orb o1">SEA</div><div class="orb o2">AIR</div><div class="orb o3">ROAD</div></div>
+<div class="wrap hero-inner">
+<p class="kicker">SEA &nbsp;•&nbsp; AIR &nbsp;•&nbsp; ROAD &nbsp;•&nbsp; LOGISTICS</p>
+<h1 data-i18n="heroTitle">GLOBAL FREIGHT<br>&amp; LOGISTICS</h1>
+<p class="hero-copy" data-i18n="heroCopy">Flexible freight solutions built around your business — across borders, modes and markets.</p>
+<div class="buttons"><a class="btn" href="#quote" data-i18n="quote">Get a quote</a><a class="btn secondary" href="#services" data-i18n="explore">Explore services</a></div>
+<div class="signature"><b>Two paths.</b><br>One destination.</div>
+</div>
+</section>
+
+<section class="service-strip" id="services">
+<div class="wrap services">
+<article><span>⚓</span><h3>Sea Freight</h3><p data-i18n="sea">Flexible ocean freight for global supply chains.</p></article>
+<article><span>✈</span><h3>Air Freight</h3><p data-i18n="air">Fast solutions when timing matters.</p></article>
+<article><span>→</span><h3>Road Transport</h3><p data-i18n="road">Reliable transport across Europe and beyond.</p></article>
+<article><span>⌂</span><h3>Warehousing</h3><p data-i18n="warehouse">Scalable storage and handling solutions.</p></article>
+<article><span>✓</span><h3>Customs & Solutions</h3><p data-i18n="customs">Practical support that keeps cargo moving.</p></article>
+</div></section>
+
+<section class="about" id="about"><div class="wrap about-grid">
+<div><p class="kicker teal">ABOUT DUVERO</p><h2 data-i18n="aboutTitle">A STRONGER TOMORROW, TOGETHER.</h2>
+<p data-i18n="aboutText">DUVERO is built around a simple idea: logistics should feel personal, responsive and straightforward. We connect businesses and markets through flexible freight solutions and long-term partnerships.</p>
+<div class="values"><div><b>PEOPLE</b><small data-i18n="people">Personal service</small></div><div><b>PROGRESS</b><small data-i18n="progress">Forward thinking</small></div><div><b>PARTNERSHIP</b><small data-i18n="partner">Long-term focus</small></div></div></div>
+<div class="visual"><div class="bigmark">D</div><p>GLOBAL REACH.<br><strong>LOCAL COMMITMENT.</strong></p></div>
+</div></section>
+
+<section class="why" id="why"><div class="wrap">
+<p class="kicker teal">WHY DUVERO</p><h2 data-i18n="whyTitle">LOGISTICS WITHOUT THE NOISE.</h2>
+<div class="why-grid">
+<article><b>01</b><h3 data-i18n="w1t">One point of contact</h3><p data-i18n="w1">Clear communication from quote to delivery.</p></article>
+<article><b>02</b><h3 data-i18n="w2t">Flexible by design</h3><p data-i18n="w2">Solutions shaped around the shipment — not the other way around.</p></article>
+<article><b>03</b><h3 data-i18n="w3t">Built for partnerships</h3><p data-i18n="w3">A long-term mindset focused on your business.</p></article>
+</div></div></section>
+
+<section class="quote" id="quote"><div class="wrap quote-grid">
+<div><p class="kicker">READY TO MOVE?</p><h2 data-i18n="quoteTitle">LET'S FIND THE RIGHT ROUTE.</h2><p data-i18n="quoteCopy">Tell us about your shipment. We’ll use the details to understand your request.</p></div>
+<form id="quoteForm">
+<div class="two"><label><span data-i18n="name">Name</span><input name="name" required></label><label><span>Email</span><input name="email" type="email" required></label></div>
+<div class="two"><label><span data-i18n="company">Company</span><input name="company"></label><label><span data-i18n="phone">Phone</span><input name="phone" type="tel"></label></div>
+<div class="two"><label><span data-i18n="from">From</span><input name="from"></label><label><span data-i18n="to">To</span><input name="to"></label></div>
+<label><span data-i18n="service">Service</span><select name="service"><option>Sea Freight</option><option>Air Freight</option><option>Road Transport</option><option>Warehousing</option><option>Customs & Solutions</option></select></label>
+<label><span data-i18n="details">Shipment details</span><textarea name="details" required></textarea></label>
+<button class="btn" type="submit" data-i18n="send">Prepare email request</button><p class="formnote" id="formnote" data-i18n="privacy">Your details are only used to respond to your enquiry.</p>
+</form></div></section>
+
+<section class="contact" id="contact"><div class="wrap contact-grid">
+<div><p class="kicker teal">CONTACT</p><h2>DUVERO GLOBAL</h2><p data-i18n="contactText">Ready to discuss a shipment or partnership? Get in touch.</p></div>
+<div class="contact-card"><p><b>Email</b><br><a href="mailto:info@duveroglobal.com">info@duveroglobal.com</a></p><p><b>Web</b><br>duveroglobal.com</p><p class="muted" data-i18n="contactNote">Add your registered address, phone number and CVR/VAT number here before launch.</p></div>
+</div></section>
+</main>
+
+<footer><div class="wrap footer-grid"><img src="assets/logo.svg" alt="DUVERO"><p>People move the world.<br><b>We keep it in motion.</b></p><div><a href="privacy.html">Privacy</a><br><a href="cookies.html">Cookies</a></div><small>© <span id="year"></span> DUVERO Global Freight & Logistics</small></div></footer>
+<script src="script.js"></script>
+</body></html>

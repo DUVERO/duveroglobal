@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 120" role="img" aria-label="DUVERO">
+<defs><linearGradient id="g" x1="0" x2="1"><stop stop-color="#00b9b7"/><stop offset="1" stop-color="#08798b"/></linearGradient></defs>
+<g transform="translate(8 13)">
+<path fill="#07344a" d="M0 5h49c31 0 50 17 50 43S80 91 49 91H0V5zm28 23v40h19c14 0 23-7 23-20s-9-20-23-20H28z"/>
+<path fill="url(#g)" d="M8 70C29 43 43 31 74 22 53 36 40 50 26 76z"/>
+<path fill="#dff9f8" d="M17 71C37 50 48 42 68 36 53 48 43 58 32 75z"/>
+</g>
+<text x="120" y="70" font-family="Arial,Helvetica,sans-serif" font-size="60" font-weight="800" fill="#07344a" letter-spacing="-2">DUVERO</text>
+<text x="124" y="95" font-family="Arial,Helvetica,sans-serif" font-size="13" font-weight="700" fill="#07344a" letter-spacing="3">GLOBAL FREIGHT &amp; LOGISTICS</text>
+</svg>
