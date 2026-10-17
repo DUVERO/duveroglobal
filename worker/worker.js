@@ -34,7 +34,7 @@ function makeQuotePdf(d,company,person,email,phone){
 
 
 const jsonReply=(obj,status=200,origin="https://duveroglobal.com")=>new Response(JSON.stringify(obj),{status,headers:{"Content-Type":"application/json","Access-Control-Allow-Origin":origin,"Access-Control-Allow-Methods":"GET,POST,PUT,OPTIONS","Access-Control-Allow-Headers":"Content-Type,Authorization","Cache-Control":"no-store","Vary":"Origin"}});
-const b64url=bytes=>btoa(String.fromCharCode(...new Uint8Array(bytes))).replace(/\\+/g,"-").replace(/\\//g,"_").replace(/=+$/,"");
+const b64url=bytes=>btoa(String.fromCharCode(...new Uint8Array(bytes))).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
 async function adminSign(secret,payload){const key=await crypto.subtle.importKey("raw",new TextEncoder().encode(secret),{name:"HMAC",hash:"SHA-256"},false,["sign"]);return b64url(await crypto.subtle.sign("HMAC",key,new TextEncoder().encode(payload)))}
 async function adminAuth(request,env){const token=(request.headers.get("Authorization")||"").replace(/^Bearer /,"");const parts=token.split(".");if(parts.length!==2||!env.ADMIN_SESSION_SECRET)return false;const expected=await adminSign(env.ADMIN_SESSION_SECRET,parts[0]);if(expected.length!==parts[1].length)return false;let diff=0;for(let i=0;i<expected.length;i++)diff|=expected.charCodeAt(i)^parts[1].charCodeAt(i);if(diff)return false;const exp=Number(parts[0]);return Number.isFinite(exp)&&exp>Date.now()&&exp<Date.now()+86400000}
 async function adminRoute(request,env,origin,url){
@@ -43,7 +43,7 @@ async function adminRoute(request,env,origin,url){
  if(!await adminAuth(request,env))return jsonReply({error:"Login required"},401,origin);
  const db=env.DUVERO_DB;
  if(url.pathname==="/admin/enquiries"&&request.method==="GET"){const data=await db.prepare("SELECT * FROM enquiries ORDER BY created_at DESC,id DESC LIMIT 200").all();return jsonReply({enquiries:(data.results||[]).map(normalizeEnquiry)},200,origin)}
- const match=url.pathname.match(/^\\/admin\\/enquiries\\/(\\d+)(?:\\/(preview|send))?$/);if(!match)return jsonReply({error:"Not found"},404,origin);
+ const match=url.pathname.match(/^\/admin\/enquiries\/(\d+)(?:\/(preview|send))?$/);if(!match)return jsonReply({error:"Not found"},404,origin);
  const id=Number(match[1]);const record=await db.prepare("SELECT * FROM enquiries WHERE id=?").bind(id).first();if(!record)return jsonReply({error:"Enquiry not found"},404,origin);
  if(request.method==="PUT"&&!match[2]){const input=await request.json();const currency=["EUR","DKK","USD"].includes(input.currency)?input.currency:"EUR";const price_lines=Array.isArray(input.price_lines)?input.price_lines.slice(0,30).map(x=>({description:clean(x.description,120),amount:Number(x.amount)||0})).filter(x=>x.description&&x.amount>=0&&x.amount<1e9):[];await db.prepare("UPDATE enquiries SET currency=?,transit=?,validity=?,incoterm=?,remarks=?,price_lines=?,status=CASE WHEN status='New' THEN 'Draft' ELSE status END,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(currency,clean(input.transit,80),Math.max(1,Math.min(365,Number(input.validity)||7)),clean(input.incoterm,20),clean(input.remarks,1000),JSON.stringify(price_lines),id).run();return jsonReply({enquiry:normalizeEnquiry(await db.prepare("SELECT * FROM enquiries WHERE id=?").bind(id).first())},200,origin)}
  if((match[2]==="preview"&&request.method==="GET")||(match[2]==="send"&&request.method==="POST")){
