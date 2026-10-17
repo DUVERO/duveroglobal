@@ -1,0 +1,10 @@
+name = "duvero-quote-api"
+main = "worker.js"
+compatibility_date = "2026-10-17"
+
+[vars]
+ALLOWED_ORIGIN = "https://duveroglobal.com"
+QUOTE_ENABLED = "false"
+
+# Set RESEND_API_KEY and QUOTE_RECIPIENT as Cloudflare Worker secrets.
+# Never commit secrets or API keys to GitHub.
