@@ -32,14 +32,55 @@ function makeQuotePdf(d,company,person,email,phone){
  const bytes=encoder.encode(pdf);let binary="";for(let i=0;i<bytes.length;i+=8192)binary+=String.fromCharCode(...bytes.subarray(i,i+8192));return btoa(binary);
 }
 
+
+const jsonReply=(obj,status=200,origin="https://duveroglobal.com")=>new Response(JSON.stringify(obj),{status,headers:{"Content-Type":"application/json","Access-Control-Allow-Origin":origin,"Access-Control-Allow-Methods":"GET,POST,PUT,OPTIONS","Access-Control-Allow-Headers":"Content-Type,Authorization","Cache-Control":"no-store","Vary":"Origin"}});
+const b64url=bytes=>btoa(String.fromCharCode(...new Uint8Array(bytes))).replace(/\\+/g,"-").replace(/\\//g,"_").replace(/=+$/,"");
+async function adminSign(secret,payload){const key=await crypto.subtle.importKey("raw",new TextEncoder().encode(secret),{name:"HMAC",hash:"SHA-256"},false,["sign"]);return b64url(await crypto.subtle.sign("HMAC",key,new TextEncoder().encode(payload)))}
+async function adminAuth(request,env){const token=(request.headers.get("Authorization")||"").replace(/^Bearer /,"");const parts=token.split(".");if(parts.length!==2||!env.ADMIN_SESSION_SECRET)return false;const expected=await adminSign(env.ADMIN_SESSION_SECRET,parts[0]);if(expected.length!==parts[1].length)return false;let diff=0;for(let i=0;i<expected.length;i++)diff|=expected.charCodeAt(i)^parts[1].charCodeAt(i);if(diff)return false;const exp=Number(parts[0]);return Number.isFinite(exp)&&exp>Date.now()&&exp<Date.now()+86400000}
+async function adminRoute(request,env,origin,url){
+ if(!env.ADMIN_PASSWORD||!env.ADMIN_SESSION_SECRET||!env.DUVERO_DB)return jsonReply({error:"Admin configuration incomplete"},503,origin);
+ if(url.pathname==="/admin/login"&&request.method==="POST"){let input;try{input=await request.json()}catch{return jsonReply({error:"Invalid JSON"},400,origin)}const provided=String(input.password||"");if(provided.length>512)return jsonReply({error:"Invalid login"},401,origin);const a=await adminSign(env.ADMIN_SESSION_SECRET,provided),b=await adminSign(env.ADMIN_SESSION_SECRET,env.ADMIN_PASSWORD);let diff=0;for(let i=0;i<a.length;i++)diff|=a.charCodeAt(i)^b.charCodeAt(i);if(diff)return jsonReply({error:"Invalid login"},401,origin);const exp=String(Date.now()+8*3600000);return jsonReply({token:exp+"."+(await adminSign(env.ADMIN_SESSION_SECRET,exp))},200,origin)}
+ if(!await adminAuth(request,env))return jsonReply({error:"Login required"},401,origin);
+ const db=env.DUVERO_DB;
+ if(url.pathname==="/admin/enquiries"&&request.method==="GET"){const data=await db.prepare("SELECT * FROM enquiries ORDER BY created_at DESC,id DESC LIMIT 200").all();return jsonReply({enquiries:(data.results||[]).map(normalizeEnquiry)},200,origin)}
+ const match=url.pathname.match(/^\\/admin\\/enquiries\\/(\\d+)(?:\\/(preview|send))?$/);if(!match)return jsonReply({error:"Not found"},404,origin);
+ const id=Number(match[1]);const record=await db.prepare("SELECT * FROM enquiries WHERE id=?").bind(id).first();if(!record)return jsonReply({error:"Enquiry not found"},404,origin);
+ if(request.method==="PUT"&&!match[2]){const input=await request.json();const currency=["EUR","DKK","USD"].includes(input.currency)?input.currency:"EUR";const price_lines=Array.isArray(input.price_lines)?input.price_lines.slice(0,30).map(x=>({description:clean(x.description,120),amount:Number(x.amount)||0})).filter(x=>x.description&&x.amount>=0&&x.amount<1e9):[];await db.prepare("UPDATE enquiries SET currency=?,transit=?,validity=?,incoterm=?,remarks=?,price_lines=?,status=CASE WHEN status='New' THEN 'Draft' ELSE status END,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(currency,clean(input.transit,80),Math.max(1,Math.min(365,Number(input.validity)||7)),clean(input.incoterm,20),clean(input.remarks,1000),JSON.stringify(price_lines),id).run();return jsonReply({enquiry:normalizeEnquiry(await db.prepare("SELECT * FROM enquiries WHERE id=?").bind(id).first())},200,origin)}
+ if((match[2]==="preview"&&request.method==="GET")||(match[2]==="send"&&request.method==="POST")){
+  const d=normalizeEnquiry(record),prices=d.price_lines||[];if(!prices.length||!prices.some(x=>x.amount>0))return jsonReply({error:"Add prices before generating an offer"},400,origin);
+  const total=prices.reduce((n,x)=>n+Number(x.amount||0),0);const summary=prices.map(x=>x.description+": "+d.currency+" "+Number(x.amount).toFixed(2)).join(" | ");
+  const offer={...d.payload,service:d.service,details:"Quotation "+d.quote_number+" | "+summary+" | TOTAL "+d.currency+" "+total.toFixed(2)+" | Transit "+d.transit+" | Validity "+d.validity+" days | "+d.remarks};
+  const pdf=makeQuotePdf(offer,d.company,d.person,d.email,d.phone);
+  if(match[2]==="preview")return jsonReply({pdf},200,origin);
+  const input=await request.json();if(input.confirmed!==true)return jsonReply({error:"Recipient confirmation required"},400,origin);const recipient=clean(input.recipient,254),subject=clean(input.subject,180);if(!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(recipient)||!subject)return jsonReply({error:"Invalid recipient or subject"},400,origin);
+  if(!env.RESEND_API_KEY)return jsonReply({error:"Email not configured"},503,origin);
+  const resp=await fetch("https://api.resend.com/emails",{method:"POST",headers:{"Authorization":"Bearer "+env.RESEND_API_KEY,"Content-Type":"application/json"},body:JSON.stringify({from:"DUVERO Quotes <info@duveroglobal.com>",to:[recipient],reply_to:env.QUOTE_RECIPIENT,subject,text:"Dear customer,\\n\\nPlease find attached our freight quotation "+d.quote_number+".\\n\\nKind regards,\\nDUVERO Global Freight & Logistics",attachments:[{filename:"DUVERO_Quotation_"+d.quote_number+".pdf",content:pdf}]})});
+  if(!resp.ok)return jsonReply({error:"Email provider rejected quotation"},502,origin);
+  await db.prepare("UPDATE enquiries SET status='Quoted',sent_at=CURRENT_TIMESTAMP,sent_to=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(recipient,id).run();return jsonReply({ok:true},200,origin)
+ }
+ return jsonReply({error:"Method not allowed"},405,origin)
+}
+function normalizeEnquiry(r){return {...r,payload:JSON.parse(r.payload||"{}"),price_lines:JSON.parse(r.price_lines||"[]")}}
+async function saveEnquiries(env,data,company,person,email,phone){
+ const db=env.DUVERO_DB;const modes=data.service==="multi"?data.multiModes.filter(x=>["sea","air","road","rail","courier"].includes(x)): [data.service];if(!modes.length)throw Error("No modes");
+ const period=new Date().toISOString().slice(0,7),group_id=crypto.randomUUID();const origin=[data.originPostcode,data.originCity,data.originCountry].filter(Boolean).join(" "),destination=[data.destPostcode,data.destCity,data.destCountry].filter(Boolean).join(" ");
+ const statements=[db.prepare("INSERT INTO quote_counters(period,last_number) VALUES (?,0) ON CONFLICT(period) DO NOTHING").bind(period)];
+ for(let i=0;i<modes.length;i++)statements.push(db.prepare("UPDATE quote_counters SET last_number=last_number+1 WHERE period=?").bind(period));
+ await db.batch(statements);
+ const count=await db.prepare("SELECT last_number FROM quote_counters WHERE period=?").bind(period).first();const start=count.last_number-modes.length+1;const ids=[];
+ for(let i=0;i<modes.length;i++){const quote_number=period+"-"+String(start+i).padStart(5,"0"),mode=modes[i];const payload={...data,service:mode,scope:data.service==="multi"?"lcl":data.scope};const result=await db.prepare("INSERT INTO enquiries(quote_number,group_id,service,company,person,email,phone,origin,destination,payload,incoterm) VALUES(?,?,?,?,?,?,?,?,?,?,?)").bind(quote_number,group_id,mode,company,person,email,phone,origin,destination,JSON.stringify(payload),clean(data.incoterm,20)).run();ids.push(quote_number)}
+ return ids;
+}
+
 const reply=(body,status=200,origin="https://duveroglobal.com")=>new Response(JSON.stringify(body),{status,headers:{"Content-Type":"application/json; charset=utf-8","Access-Control-Allow-Origin":origin,"Vary":"Origin","Cache-Control":"no-store"}});
 const clean=(v,max=500)=>typeof v==="string"?v.trim().slice(0,max):"";
 export default {async fetch(request,env){
  const origin=env.ALLOWED_ORIGIN||"https://duveroglobal.com";
- const reqOrigin=request.headers.get("Origin");
+ const reqOrigin=request.headers.get("Origin");const url=new URL(request.url);
  const isLocationGet=request.method==="GET"&&new URL(request.url).pathname==="/locations";
  if(reqOrigin!==origin && !(isLocationGet && !reqOrigin))return reply({error:"Origin not allowed"},403,origin);
- if(request.method==="OPTIONS")return new Response(null,{status:204,headers:{"Access-Control-Allow-Origin":origin,"Access-Control-Allow-Methods":"GET, POST, OPTIONS","Access-Control-Allow-Headers":"Content-Type","Vary":"Origin"}});
+ if(request.method==="OPTIONS")return new Response(null,{status:204,headers:{"Access-Control-Allow-Origin":origin,"Access-Control-Allow-Methods":"GET, POST, PUT, OPTIONS","Access-Control-Allow-Headers":"Content-Type, Authorization","Vary":"Origin"}});
+ if(url.pathname.startsWith("/admin/")){try{return await adminRoute(request,env,origin,url)}catch(e){return jsonReply({error:"Admin request failed"},500,origin)}}
  if(request.method==="GET"&&new URL(request.url).pathname==="/locations"){
   if(!env.DUVERO_DB)return reply({error:"Database binding not configured"},503,origin);
   const url=new URL(request.url),country=clean(url.searchParams.get("country"),2).toUpperCase(),q=clean(url.searchParams.get("q"),80);
@@ -79,5 +120,6 @@ export default {async fetch(request,env){
  const body=lines.join("\n")+"\n\nCargo:\n"+cargo;
  const response=await fetch("https://api.resend.com/emails",{method:"POST",headers:{"Authorization":"Bearer "+env.RESEND_API_KEY,"Content-Type":"application/json"},body:JSON.stringify({from:"DUVERO Quotes <info@duveroglobal.com>",to:[env.QUOTE_RECIPIENT],reply_to:email,subject:"DUVERO freight enquiry — "+company,text:body,attachments:[{filename:"DUVERO_Freight_Enquiry.pdf",content:makeQuotePdf(data,company,person,email,phone)},...attachments.map(a=>({filename:clean(a.filename,120).replace(/[\\/]/g,"_"),content:a.content}))]})});
  if(!response.ok)return reply({error:"Email delivery failed"},502,origin);
- return reply({ok:true},200,origin);
+ let quoteNumbers=[];if(env.DUVERO_DB){try{quoteNumbers=await saveEnquiries(env,data,company,person,email,phone)}catch(e){return reply({error:"Email sent but enquiry could not be saved. Contact DUVERO."},500,origin)}}
+ return reply({ok:true,quoteNumbers},200,origin);
 }};
