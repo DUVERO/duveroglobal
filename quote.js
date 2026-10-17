@@ -51,12 +51,15 @@ async function lookupPostal(prefix){
  const requestId=(postalRequests[prefix]||0)+1;postalRequests[prefix]=requestId;
  if(status)status.textContent=lang==="da"?"Søger efter by…":"Looking up city…";
  try{
-  const response=await fetch("https://api.zippopotam.us/"+encodeURIComponent(country.toLowerCase())+"/"+encodeURIComponent(postcode),{signal:AbortSignal.timeout(6000)});
+  const url=country==="DK"
+   ?"https://api.dataforsyningen.dk/postnumre/"+encodeURIComponent(postcode)
+   :"https://api.zippopotam.us/"+encodeURIComponent(country.toLowerCase())+"/"+encodeURIComponent(postcode);
+  const response=await fetch(url,{signal:AbortSignal.timeout(6000)});
   if(!response.ok)throw Error("Not found");
   const data=await response.json();
   if(postalRequests[prefix]!==requestId||state[prefix+"Country"]!==country||String(state[prefix+"Postcode"]||"").trim()!==postcode)return;
   const places=Array.isArray(data.places)?data.places:[];
-  const names=[...new Set(places.map(p=>p["place name"]).filter(Boolean))];
+  const names=country==="DK"?(data.navn?[data.navn]:[]):[...new Set(places.map(p=>p["place name"]).filter(Boolean))];
   const cityInput=wizard.querySelector('[name="'+prefix+'City"]');
   if(!names.length)throw Error("No city");
   if(names.length===1){state[prefix+"City"]=names[0];if(cityInput)cityInput.value=names[0];}
