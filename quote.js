@@ -53,7 +53,7 @@ if(formStep===4){
   html+='<div id="quoteTurnstile"></div>';
   if(sendError)html+='<div class="blocked" role="alert">'+esc(sendError)+'</div>';
  }
- if(finished&&QUOTE_LIVE)html='<div class="blocked" role="status">'+(lang==="da"?"Forespørgslen er sendt.":"Your enquiry has been sent.")+'</div>'+html;
+ if(finished&&QUOTE_LIVE)html='<div class="blocked" role="status">'+(lang==="da"?"Forespørgslen er sendt.":"Your enquiry has been sent.")+'</div>'+html.replace(/^<div class="blocked">[\s\S]*?<\/div><br>/,"");
 }
 wizard.innerHTML=html;
 if(formStep===4&&QUOTE_LIVE&&!finished&&window.turnstile&&TURNSTILE_SITE_KEY){
