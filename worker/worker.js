@@ -19,7 +19,7 @@ function makeQuotePdf(d,company,person,email,phone){
  if(d.service==="road")row("Road setup",String(d.roadType||"ltl").toUpperCase());
  if(["sea","rail"].includes(d.service))row("Transport setup",String(d.scope||"lcl").toUpperCase());
  section("Origin");row("Country",d.originCountryOther||d.originCountry);row("City / postal code",[d.originCity,d.originPostcode].filter(Boolean).join(" / "));row("Sender",d.originParty);row("Address",d.originAddress);
- section("Destination");row("Country",d.destCountryOther||d.destCountry);row("City / postal code",[d.destCity,d.destPostcode].filter(Boolean).join(" / "));row("Recipient",d.destParty);row("Address",d.destAddress);
+ section("Destination");if(["sea","air","rail","road","multi"].includes(d.service))row("Tail-lift delivery",d.tailLift?"Required":"Not required");row("Country",d.destCountryOther||d.destCountry);row("City / postal code",[d.destCity,d.destPostcode].filter(Boolean).join(" / "));row("Recipient",d.destParty);row("Address",d.destAddress);
  section("Cargo details");row("Goods description",d.commodity);row("Ready date",d.ready);row("Dangerous goods",d.danger);if(d.danger==="yes")row("UN number",d.un);
  if(d.noDimensions&&["sea","multi"].includes(d.service)){row("Total pieces",d.totalPieces);row("Total weight (kg)",d.totalWeight);row("Total volume (m3)",d.totalCbm)}
  else {let qty=0,weight=0,cbm=0;for(const [i,c] of (Array.isArray(d.cargo)?d.cargo:[]).slice(0,30).entries()){check(140);row("Cargo line",i+1);row("Type",c.type||c.size);row("Qty / weight per unit",String(c.qty||"")+" / "+String(c.weight||"")+" kg");if(c.length&&c.width&&c.height)row("Dimensions (cm)",[c.length,c.width,c.height].join(" x "));if(c.stack)row("Stackable",c.stack);const n=Number(c.qty)||0;qty+=n;weight+=n*(Number(c.weight)||0);cbm+=n*(Number(c.length)||0)*(Number(c.width)||0)*(Number(c.height)||0)/1e6;}row("Total units",qty);row("Total weight",weight.toFixed(2)+" kg");if(cbm)row("Total volume",cbm.toFixed(3)+" m3")}
@@ -71,7 +71,7 @@ export default {async fetch(request,env){
  const lines=[
  ["Service",data.service],["Requested modes",data.service==="multi"&&Array.isArray(data.multiModes)?data.multiModes.filter(m=>["sea","air","road","rail","courier"].includes(m)).map(m=>({sea:"Sea LCL",air:"Air",road:"Road LTL",rail:"Rail LCL",courier:"Courier / express"})[m]).join(" + "):""],["Direction",data.direction],["Incoterm",data.incoterm],["Transport type",data.scope],
  ["Origin country",data.originCountryOther||data.originCountry],["Origin city",data.originCity],["Origin postal code",data.originPostcode],["Origin address",data.originAddress],["Origin party",data.originParty],
- ["Destination country",data.destCountryOther||data.destCountry],["Destination city",data.destCity],["Destination postal code",data.destPostcode],["Destination address",data.destAddress],["Destination party",data.destParty],
+ ["Destination country",data.destCountryOther||data.destCountry],["Destination city",data.destCity],["Destination postal code",data.destPostcode],["Destination address",data.destAddress],["Destination party",data.destParty],["Tail-lift delivery",["sea","air","rail","road","multi"].includes(data.service)?(data.tailLift?"Required":"Not required"):""],
  ["Goods",data.commodity],["Ready date",data.ready],["Dangerous goods",data.danger],["UN number",data.un],["Remarks",data.details],
  ["Company",company],["Name",person],["Email",email],["Phone",phone]
  ].map(([k,v])=>k+": "+clean(v,1500));
