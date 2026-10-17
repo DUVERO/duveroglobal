@@ -24,7 +24,7 @@ export default {async fetch(request,env){
  if(env.QUOTE_ENABLED!=="true")return reply({error:"Email sending is not enabled yet"},503,origin);
  if(!env.TURNSTILE_SECRET_KEY)return reply({error:"Spam protection not configured"},503,origin);
  if(!env.RESEND_API_KEY||!env.QUOTE_RECIPIENT)return reply({error:"Service not configured"},503,origin);
- if(Number(request.headers.get("content-length")||0)>20000)return reply({error:"Request too large"},413,origin);
+ if(Number(request.headers.get("content-length")||0)>8500000)return reply({error:"Request too large"},413,origin);
  let data;try{data=await request.json()}catch{return reply({error:"Invalid JSON"},400,origin)}
  if(!data||typeof data!=="object"||Array.isArray(data))return reply({error:"Invalid data"},400,origin);
  if(data.website)return reply({ok:true},200,origin); // honeypot
@@ -36,6 +36,8 @@ export default {async fetch(request,env){
  const email=clean(data.email,254),person=clean(data.person,120),company=clean(data.company,150),phone=clean(data.phone,80);
  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||!person||!company||!phone)return reply({error:"Missing or invalid contact details"},400,origin);
  if(!Array.isArray(data.cargo)||!data.cargo.length||data.cargo.length>30)return reply({error:"Invalid cargo"},400,origin);
+ const attachments=Array.isArray(data.attachments)?data.attachments:[];
+ if(attachments.length>3||attachments.some(a=>!a||typeof a.filename!=="string"||!/\.(pdf|jpe?g|png|docx?|xlsx?)$/i.test(a.filename)||typeof a.content!=="string"||a.content.length>2800000||!/^[A-Za-z0-9+/]+={0,2}$/.test(a.content)))return reply({error:"Invalid attachment"},400,origin);
  const lines=[
  ["Service",data.service],["Direction",data.direction],["Incoterm",data.incoterm],["Transport type",data.scope],
  ["Origin country",data.originCountryOther||data.originCountry],["Origin city",data.originCity],["Origin postal code",data.originPostcode],["Origin address",data.originAddress],["Origin party",data.originParty],
@@ -45,7 +47,7 @@ export default {async fetch(request,env){
  ].map(([k,v])=>k+": "+clean(v,1500));
  const cargo=data.cargo.map((c,i)=>"Line "+(i+1)+": "+["type","size","qty","weight","length","width","height","stack"].map(k=>k+"="+clean(c?.[k],100)).join(", ")).join("\n");
  const body=lines.join("\n")+"\n\nCargo:\n"+cargo;
- const response=await fetch("https://api.resend.com/emails",{method:"POST",headers:{"Authorization":"Bearer "+env.RESEND_API_KEY,"Content-Type":"application/json"},body:JSON.stringify({from:"DUVERO Quotes <info@duveroglobal.com>",to:[env.QUOTE_RECIPIENT],reply_to:email,subject:"DUVERO freight enquiry — "+company,text:body})});
+ const response=await fetch("https://api.resend.com/emails",{method:"POST",headers:{"Authorization":"Bearer "+env.RESEND_API_KEY,"Content-Type":"application/json"},body:JSON.stringify({from:"DUVERO Quotes <info@duveroglobal.com>",to:[env.QUOTE_RECIPIENT],reply_to:email,subject:"DUVERO freight enquiry — "+company,text:body,attachments:attachments.map(a=>({filename:clean(a.filename,120).replace(/[\\/]/g,"_"),content:a.content}))})});
  if(!response.ok)return reply({error:"Email delivery failed"},502,origin);
  return reply({ok:true},200,origin);
 }};
