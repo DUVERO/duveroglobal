@@ -55,7 +55,7 @@ async function lookupLocation(prefix){
  if(status)status.textContent=lang==="da"?"Søger…":"Searching…";
  try{
   const response=await fetch(QUOTE_API+"locations?country="+encodeURIComponent(country)+"&q="+encodeURIComponent(term));
-  if(!response.ok)throw Error("Unavailable");
+  if(!response.ok)throw Error("HTTP "+response.status);
   const data=await response.json();if(postalRequests[prefix]!==id||!results.isConnected)return;
   results.replaceChildren();
   const matches=(data.results||[]).filter(x=>x.postcode&&x.city);
@@ -70,8 +70,8 @@ async function lookupLocation(prefix){
    });results.append(button);
   }
   results.hidden=!matches.length;
-  if(status)status.textContent=matches.length?(lang==="da"?matches.length+" forslag fundet":matches.length+" matches found"):(lang==="da"?"Ingen forslag fundet.":"No matches found.");
- }catch{if(postalRequests[prefix]!==id)return;clearLocation(prefix);if(status)status.textContent=lang==="da"?"Søgning midlertidigt utilgængelig.":"Lookup temporarily unavailable."}
+  if(status)status.textContent=matches.length?(lang==="da"?matches.length+" forslag fundet":matches.length+" matches found"):(lang==="da"?"Ingen forslag fundet for "+country+" / "+term+".":"No matches for "+country+" / "+term+".");
+ }catch(err){if(postalRequests[prefix]!==id)return;clearLocation(prefix);if(status)status.textContent=(lang==="da"?"Søgefejl: ":"Search error: ")+(err?.message||"Network connection failed")+" — "+window.location.hostname;}
 }
 function scheduleLocation(prefix){
  clearTimeout(postalTimers[prefix]);postalRequests[prefix]=(postalRequests[prefix]||0)+1;
