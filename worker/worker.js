@@ -39,7 +39,7 @@ export default {async fetch(request,env){
  const attachments=Array.isArray(data.attachments)?data.attachments:[];
  if(attachments.length>3||attachments.some(a=>!a||typeof a.filename!=="string"||!/\.(pdf|jpe?g|png|docx?|xlsx?)$/i.test(a.filename)||typeof a.content!=="string"||a.content.length>2800000||!/^[A-Za-z0-9+/]+={0,2}$/.test(a.content)))return reply({error:"Invalid attachment"},400,origin);
  const lines=[
- ["Service",data.service],["Direction",data.direction],["Incoterm",data.incoterm],["Transport type",data.scope],
+ ["Service",data.service],["Requested modes",data.service==="multi"&&Array.isArray(data.multiModes)?data.multiModes.filter(m=>["sea","air","rail"].includes(m)).map(m=>m==="sea"?"Sea LCL":m==="rail"?"Rail LCL":"Air").join(" + "):""],["Direction",data.direction],["Incoterm",data.incoterm],["Transport type",data.scope],
  ["Origin country",data.originCountryOther||data.originCountry],["Origin city",data.originCity],["Origin postal code",data.originPostcode],["Origin address",data.originAddress],["Origin party",data.originParty],
  ["Destination country",data.destCountryOther||data.destCountry],["Destination city",data.destCity],["Destination postal code",data.destPostcode],["Destination address",data.destAddress],["Destination party",data.destParty],
  ["Goods",data.commodity],["Ready date",data.ready],["Dangerous goods",data.danger],["UN number",data.un],["Remarks",data.details],
