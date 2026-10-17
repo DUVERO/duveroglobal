@@ -10,11 +10,17 @@ export default {async fetch(request,env){
  if(request.method==="OPTIONS")return new Response(null,{status:204,headers:{"Access-Control-Allow-Origin":origin,"Access-Control-Allow-Methods":"POST, OPTIONS","Access-Control-Allow-Headers":"Content-Type","Vary":"Origin"}});
  if(request.method!=="POST")return reply({error:"Method not allowed"},405,origin);
  if(env.QUOTE_ENABLED!=="true")return reply({error:"Email sending is not enabled yet"},503,origin);
+ if(!env.TURNSTILE_SECRET_KEY)return reply({error:"Spam protection not configured"},503,origin);
  if(!env.RESEND_API_KEY||!env.QUOTE_RECIPIENT)return reply({error:"Service not configured"},503,origin);
  if(Number(request.headers.get("content-length")||0)>20000)return reply({error:"Request too large"},413,origin);
  let data;try{data=await request.json()}catch{return reply({error:"Invalid JSON"},400,origin)}
  if(!data||typeof data!=="object"||Array.isArray(data))return reply({error:"Invalid data"},400,origin);
  if(data.website)return reply({ok:true},200,origin); // honeypot
+ const token=clean(data.turnstileToken,2048);
+ if(!token)return reply({error:"Anti-spam verification required"},400,origin);
+ const form=new FormData();form.append("secret",env.TURNSTILE_SECRET_KEY);form.append("response",token);
+ const verification=await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify",{method:"POST",body:form});
+ if(!verification.ok||!(await verification.json()).success)return reply({error:"Anti-spam verification failed"},403,origin);
  const email=clean(data.email,254),person=clean(data.person,120),company=clean(data.company,150),phone=clean(data.phone,80);
  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||!person||!company||!phone)return reply({error:"Missing or invalid contact details"},400,origin);
  if(!Array.isArray(data.cargo)||!data.cargo.length||data.cargo.length>30)return reply({error:"Invalid cargo"},400,origin);
