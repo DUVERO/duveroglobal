@@ -56,7 +56,7 @@ async function lookupLocation(prefix){
  try{
   const response=await fetch(QUOTE_API+"locations?country="+encodeURIComponent(country)+"&q="+encodeURIComponent(term));
   if(!response.ok)throw Error("Unavailable");
-  const data=await response.json();if(postalRequests[prefix]!==id)return;
+  const data=await response.json();if(postalRequests[prefix]!==id||!results.isConnected)return;
   results.replaceChildren();
   const matches=(data.results||[]).filter(x=>x.postcode&&x.city);
   for(const m of matches){
@@ -80,7 +80,7 @@ function scheduleLocation(prefix){
 function onInput(e){if(e.target.dataset.line!==undefined){const {line,key}=e.target.dataset;state.cargo[Number(line)][key]=e.target.value}else state[e.target.name]=e.target.value;
  if(step===1&&["originLocationSearch","destLocationSearch"].includes(e.target.name)){const p=e.target.name.startsWith("origin")?"origin":"dest";state[p+"Postcode"]="";state[p+"City"]="";clearLocation(p);scheduleLocation(p)}
 }
-function onChange(e){onInput(e);if(["service","scope","direction","danger","originCountry","destCountry"].includes(e.target.name)){if(e.target.name==="direction"&&state.direction==="export"&&state.incoterm==="EXW")state.incoterm="DAP";
+function onChange(e){if(["originLocationSearch","destLocationSearch"].includes(e.target.name))return;onInput(e);if(["service","scope","direction","danger","originCountry","destCountry"].includes(e.target.name)){if(e.target.name==="direction"&&state.direction==="export"&&state.incoterm==="EXW")state.incoterm="DAP";
  if(["originCountry","destCountry"].includes(e.target.name)){const p=e.target.name.startsWith("origin")?"origin":"dest";state[p+"City"]="";state[p+"Postcode"]="";state[p+"LocationSearch"]="";postalRequests[p]=(postalRequests[p]||0)+1}
  render();
  if(["originCountry","destCountry"].includes(e.target.name))clearLocation(e.target.name.startsWith("origin")?"origin":"dest")}}
