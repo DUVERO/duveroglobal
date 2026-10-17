@@ -6,7 +6,9 @@ const reply=(body,status=200,origin="https://duveroglobal.com")=>new Response(JS
 const clean=(v,max=500)=>typeof v==="string"?v.trim().slice(0,max):"";
 export default {async fetch(request,env){
  const origin=env.ALLOWED_ORIGIN||"https://duveroglobal.com";
- if(request.headers.get("Origin")!==origin)return reply({error:"Origin not allowed"},403,origin);
+ const reqOrigin=request.headers.get("Origin");
+ const isLocationGet=request.method==="GET"&&new URL(request.url).pathname==="/locations";
+ if(reqOrigin!==origin && !(isLocationGet && !reqOrigin))return reply({error:"Origin not allowed"},403,origin);
  if(request.method==="OPTIONS")return new Response(null,{status:204,headers:{"Access-Control-Allow-Origin":origin,"Access-Control-Allow-Methods":"GET, POST, OPTIONS","Access-Control-Allow-Headers":"Content-Type","Vary":"Origin"}});
  if(request.method==="GET"&&new URL(request.url).pathname==="/locations"){
   if(!env.DUVERO_DB)return reply({error:"Database binding not configured"},503,origin);
