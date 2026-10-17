@@ -18,7 +18,7 @@
 <a href="#why" data-i18n="navWhy">Why DUVERO</a><a href="#contact" data-i18n="navContact">Contact</a>
 <button class="lang" id="lang">DA</button>
 </nav>
-<a class="btn headbtn" href="#quote" data-i18n="quote">Get a quote</a>
+<a class="btn headbtn" href="quote.html" data-i18n="quote">Get a quote</a>
 </header>
 
 <main>
@@ -28,7 +28,7 @@
 <p class="kicker">SEA &nbsp;•&nbsp; AIR &nbsp;•&nbsp; ROAD &nbsp;•&nbsp; LOGISTICS</p>
 <h1 data-i18n="heroTitle">GLOBAL FREIGHT<br>&amp; LOGISTICS</h1>
 <p class="hero-copy" data-i18n="heroCopy">Flexible freight solutions built around your business — across borders, modes and markets.</p>
-<div class="buttons"><a class="btn" href="#quote" data-i18n="quote">Get a quote</a><a class="btn secondary" href="#services" data-i18n="explore">Explore services</a></div>
+<div class="buttons"><a class="btn" href="quote.html" data-i18n="quote">Get a quote</a><a class="btn secondary" href="#services" data-i18n="explore">Explore services</a></div>
 <div class="signature"><b>Two paths.</b><br>One destination.</div>
 </div>
 </section>
@@ -59,14 +59,8 @@
 
 <section class="quote" id="quote"><div class="wrap quote-grid">
 <div><p class="kicker">READY TO MOVE?</p><h2 data-i18n="quoteTitle">LET'S FIND THE RIGHT ROUTE.</h2><p data-i18n="quoteCopy">Tell us about your shipment. We’ll use the details to understand your request.</p></div>
-<form id="quoteForm">
-<div class="two"><label><span data-i18n="name">Name</span><input name="name" required></label><label><span>Email</span><input name="email" type="email" required></label></div>
-<div class="two"><label><span data-i18n="company">Company</span><input name="company"></label><label><span data-i18n="phone">Phone</span><input name="phone" type="tel"></label></div>
-<div class="two"><label><span data-i18n="from">From</span><input name="from"></label><label><span data-i18n="to">To</span><input name="to"></label></div>
-<label><span data-i18n="service">Service</span><select name="service"><option>Sea Freight</option><option>Air Freight</option><option>Road Transport</option><option>Warehousing</option><option>Customs & Solutions</option></select></label>
-<label><span data-i18n="details">Shipment details</span><textarea name="details" required></textarea></label>
-<button class="btn" type="submit" data-i18n="send">Prepare email request</button><p class="formnote" id="formnote" data-i18n="privacy">Your details are only used to respond to your enquiry.</p>
-</form></div></section>
+<div class="quote-entry">
+<p data-i18n="quoteIntro">A guided request for sea, air, road and other freight services — with all the essential shipment details in one place.</p><a class="btn" href="quote.html" data-i18n="startQuote">Start your freight enquiry →</a><p class="formnote" data-i18n="testNote">Test version — no enquiries are submitted yet.</p></div></div></section>
 
 <section class="contact" id="contact"><div class="wrap contact-grid">
 <div><p class="kicker teal">CONTACT</p><h2>DUVERO GLOBAL</h2><p data-i18n="contactText">Ready to discuss a shipment or partnership? Get in touch.</p></div>
@@ -74,6 +68,6 @@
 </div></section>
 </main>
 
-<footer><div class="wrap footer-grid"><img src="assets/logo.svg" alt="DUVERO"><p>People move the world.<br><b>We keep it in motion.</b></p><div><a href="privacy.html">Privacy</a><br><a href="cookies.html">Cookies</a></div><small>© <span id="year"></span> DUVERO Global Freight & Logistics</small></div></footer>
+<footer><div class="wrap footer-grid"><img src="logo.svg" alt="DUVERO"><p>People move the world.<br><b>We keep it in motion.</b></p><div><a href="privacy.html">Privacy</a><br><a href="cookies.html">Cookies</a></div><small>© <span id="year"></span> DUVERO Global Freight & Logistics</small></div></footer>
 <script src="script.js"></script>
 </body></html>
