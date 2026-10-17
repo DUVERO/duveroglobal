@@ -70,7 +70,7 @@ async function lookupLocation(prefix){
    });results.append(button);
   }
   results.hidden=!matches.length;
-  if(status)status.textContent=matches.length?"":lang==="da"?"Ingen forslag fundet.":"No matches found.";
+  if(status)status.textContent=matches.length?(lang==="da"?matches.length+" forslag fundet":matches.length+" matches found"):(lang==="da"?"Ingen forslag fundet.":"No matches found.");
  }catch{if(postalRequests[prefix]!==id)return;clearLocation(prefix);if(status)status.textContent=lang==="da"?"Søgning midlertidigt utilgængelig.":"Lookup temporarily unavailable."}
 }
 function scheduleLocation(prefix){
