@@ -43,7 +43,7 @@ if(formStep===4&&QUOTE_LIVE&&!finished&&window.turnstile&&TURNSTILE_SITE_KEY){
 }
 const next=document.getElementById("next");next.textContent=finished?(QUOTE_LIVE?(lang==="da"?"Sendt":"Sent"):t("saved")):step===4&&QUOTE_LIVE?(lang==="da"?"Send forespørgsel →":"Send enquiry →"):step===4?t("finish"):step===3?t("review"):t("next");next.disabled=finished||sending;
 wizard.querySelectorAll('input,select,textarea').forEach(el=>{el.addEventListener("change",onChange);if(el.type!=="radio")el.addEventListener("input",onInput)});wizard.querySelectorAll(".remove-line").forEach(el=>el.addEventListener("click",()=>{collect();state.cargo.splice(Number(el.dataset.index),1);render()}));const add=wizard.querySelector("#addLine");if(add)add.addEventListener("click",()=>{collect();state.cargo.push({type:"pallet",qty:1,weight:"",length:"",width:"",height:"",size:"40HC",stack:"no"});render()});}
-const postalTimers={},postalRequests={};
+const postalTimers={},postalRequests={}; // Inline suggestions appear automatically after 2 characters
 function clearLocation(prefix){
  const results=document.getElementById(prefix+"LocationResults");if(results){results.replaceChildren();results.hidden=true}
 }
