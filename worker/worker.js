@@ -14,7 +14,7 @@ export default {async fetch(request,env){
   if(!/^[A-Z]{2}$/.test(country)||q.length<2)return reply({results:[]},200,origin);
   const prefix=q.replace(/[%_]/g,"")+"%";
   try{
-   const result=await env.DUVERO_DB.prepare("SELECT postal_code AS postcode, city FROM locations WHERE country_code = ? AND (postal_code LIKE ? OR city LIKE ?) GROUP BY postal_code, city ORDER BY CASE WHEN postal_code LIKE ? THEN 0 ELSE 1 END, postal_code, city LIMIT 15").bind(country,prefix,prefix,prefix).all();
+   const result=await env.DUVERO_DB.prepare("SELECT postal_code AS postcode, city FROM locations WHERE country_code = ? AND (postal_code LIKE ? OR city LIKE ?) GROUP BY postal_code, city ORDER BY CASE WHEN postal_code LIKE ? THEN 0 ELSE 1 END, postal_code, city LIMIT 500").bind(country,prefix,prefix,prefix).all();
    return reply({results:result.results||[]},200,origin);
   }catch{return reply({error:"Location lookup unavailable"},503,origin)}
  }
