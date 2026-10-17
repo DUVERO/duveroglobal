@@ -7,7 +7,17 @@ const clean=(v,max=500)=>typeof v==="string"?v.trim().slice(0,max):"";
 export default {async fetch(request,env){
  const origin=env.ALLOWED_ORIGIN||"https://duveroglobal.com";
  if(request.headers.get("Origin")!==origin)return reply({error:"Origin not allowed"},403,origin);
- if(request.method==="OPTIONS")return new Response(null,{status:204,headers:{"Access-Control-Allow-Origin":origin,"Access-Control-Allow-Methods":"POST, OPTIONS","Access-Control-Allow-Headers":"Content-Type","Vary":"Origin"}});
+ if(request.method==="OPTIONS")return new Response(null,{status:204,headers:{"Access-Control-Allow-Origin":origin,"Access-Control-Allow-Methods":"GET, POST, OPTIONS","Access-Control-Allow-Headers":"Content-Type","Vary":"Origin"}});
+ if(request.method==="GET"&&new URL(request.url).pathname==="/locations"){
+  if(!env.DUVERO_DB)return reply({error:"Database binding not configured"},503,origin);
+  const url=new URL(request.url),country=clean(url.searchParams.get("country"),2).toUpperCase(),q=clean(url.searchParams.get("q"),80);
+  if(!/^[A-Z]{2}$/.test(country)||q.length<2)return reply({results:[]},200,origin);
+  const escaped=q.replace(/[\\%_]/g,"\\ if(request.method!=="POST")return reply({error:"Method not allowed"},405,origin);");
+  try{
+   const result=await env.DUVERO_DB.prepare("SELECT postal_code AS postcode, city FROM locations WHERE country_code = ? AND (postal_code LIKE ? ESCAPE '\\\\' OR city LIKE ? ESCAPE '\\\\') GROUP BY postal_code, city ORDER BY CASE WHEN postal_code LIKE ? ESCAPE '\\\\' THEN 0 ELSE 1 END, postal_code, city LIMIT 15").bind(country,escaped+"%",escaped+"%",escaped+"%").all();
+   return reply({results:result.results||[]},200,origin);
+  }catch{return reply({error:"Location lookup unavailable"},503,origin)}
+ }
  if(request.method!=="POST")return reply({error:"Method not allowed"},405,origin);
  if(env.QUOTE_ENABLED!=="true")return reply({error:"Email sending is not enabled yet"},503,origin);
  if(!env.TURNSTILE_SECRET_KEY)return reply({error:"Spam protection not configured"},503,origin);
