@@ -2,6 +2,36 @@
 // Required secrets: RESEND_API_KEY, QUOTE_RECIPIENT (Gmail address).
 // Required variable: ALLOWED_ORIGIN=https://duveroglobal.com
 // The public website remains in test mode until explicitly enabled.
+
+function makeQuotePdf(d,company,person,email,phone){
+ const cleanPdf=v=>String(v??"").replace(/[^\x20-\x7e]/g," ").replace(/\\/g,"\\\\").replace(/\(/g,"\\(").replace(/\)/g,"\\)").slice(0,110);
+ const labels={sea:"Sea Freight - LCL",air:"Air Freight",road:"Road Freight - LTL",rail:"Rail Freight - LCL",courier:"Courier / Express"};
+ const pages=[];let cmds=[],y=700;
+ const text=(v,x,yy,size=10,bold=false)=>cmds.push("BT /"+(bold?"B":"R")+" "+size+" Tf 1 0 0 1 "+x+" "+yy+" Tm ("+cleanPdf(v)+") Tj ET");
+ const start=()=>{cmds=["0.03 0.18 0.28 rg 0 724 595 88 re f","0 0.58 0.6 rg 0 720 595 4 re f"];cmds.push("1 1 1 rg");text("DUVERO",40,768,27,true);text("GLOBAL FREIGHT & LOGISTICS",41,746,9);text("FREIGHT ENQUIRY",388,765,14,true);cmds.push("0.04 0.19 0.28 rg");y=690};
+ const next=()=>{pages.push(cmds.join("\n"));start()};
+ const check=h=>{if(y-h<48)next()};
+ const section=v=>{check(45);cmds.push("0.91 0.96 0.96 rg 36 "+(y-11)+" 523 28 re f","0.04 0.19 0.28 rg");text(v.toUpperCase(),46,y,11,true);y-=43};
+ const row=(k,v)=>{if(v===undefined||v===null||String(v).trim()==="")return;check(25);cmds.push("0.34 0.42 0.47 rg");text(k,46,y,9);cmds.push("0.04 0.19 0.28 rg");text(v,207,y,9,true);y-=23};
+ start();section("Shipment overview");row("Service",d.service==="multi"?"Compare Freight":labels[d.service]||d.service);
+ if(d.service==="multi")row("Compare modes",(Array.isArray(d.multiModes)?d.multiModes:[]).map(m=>labels[m]||m).join(" + "));
+ row("Direction",d.direction);row("Incoterm",d.incoterm);
+ if(d.service==="road")row("Road setup",String(d.roadType||"ltl").toUpperCase());
+ if(["sea","rail"].includes(d.service))row("Transport setup",String(d.scope||"lcl").toUpperCase());
+ section("Origin");row("Country",d.originCountryOther||d.originCountry);row("City / postal code",[d.originCity,d.originPostcode].filter(Boolean).join(" / "));row("Sender",d.originParty);row("Address",d.originAddress);
+ section("Destination");row("Country",d.destCountryOther||d.destCountry);row("City / postal code",[d.destCity,d.destPostcode].filter(Boolean).join(" / "));row("Recipient",d.destParty);row("Address",d.destAddress);
+ section("Cargo details");row("Goods description",d.commodity);row("Ready date",d.ready);row("Dangerous goods",d.danger);if(d.danger==="yes")row("UN number",d.un);
+ if(d.noDimensions&&["sea","multi"].includes(d.service)){row("Total pieces",d.totalPieces);row("Total weight (kg)",d.totalWeight);row("Total volume (m3)",d.totalCbm)}
+ else {let qty=0,weight=0,cbm=0;for(const [i,c] of (Array.isArray(d.cargo)?d.cargo:[]).slice(0,30).entries()){check(140);row("Cargo line",i+1);row("Type",c.type||c.size);row("Qty / weight per unit",String(c.qty||"")+" / "+String(c.weight||"")+" kg");if(c.length&&c.width&&c.height)row("Dimensions (cm)",[c.length,c.width,c.height].join(" x "));if(c.stack)row("Stackable",c.stack);const n=Number(c.qty)||0;qty+=n;weight+=n*(Number(c.weight)||0);cbm+=n*(Number(c.length)||0)*(Number(c.width)||0)*(Number(c.height)||0)/1e6;}row("Total units",qty);row("Total weight",weight.toFixed(2)+" kg");if(cbm)row("Total volume",cbm.toFixed(3)+" m3")}
+ section("Additional information");row("Remarks",d.details);
+ section("Customer details");row("Company",company);row("Contact",person);row("Email",email);row("Phone",phone);pages.push(cmds.join("\n"));
+ const encoder=new TextEncoder(),objs=[];const add=x=>(objs.push(x),objs.length);const regular=add("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"),bold=add("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>");const refs=[];
+ for(const page of pages){const stream=add("<< /Length "+encoder.encode(page).length+" >>\nstream\n"+page+"\nendstream");refs.push(add("<< /Type /Page /Parent PARENT /MediaBox [0 0 595 812] /Resources << /Font << /R "+regular+" 0 R /B "+bold+" 0 R >> >> /Contents "+stream+" 0 R >>"))}
+ const parent=add("<< /Type /Pages /Kids ["+refs.map(n=>n+" 0 R").join(" ")+"] /Count "+refs.length+" >>");for(const n of refs)objs[n-1]=objs[n-1].replace("PARENT",parent+" 0 R");const catalog=add("<< /Type /Catalog /Pages "+parent+" 0 R >>");
+ let pdf="%PDF-1.4\n",offsets=[0];for(let i=0;i<objs.length;i++){offsets.push(encoder.encode(pdf).length);pdf+=(i+1)+" 0 obj\n"+objs[i]+"\nendobj\n"}const xref=encoder.encode(pdf).length;pdf+="xref\n0 "+(objs.length+1)+"\n0000000000 65535 f \n"+offsets.slice(1).map(n=>String(n).padStart(10,"0")+" 00000 n \n").join("")+"trailer\n<< /Size "+(objs.length+1)+" /Root "+catalog+" 0 R >>\nstartxref\n"+xref+"\n%%EOF";
+ const bytes=encoder.encode(pdf);let binary="";for(let i=0;i<bytes.length;i+=8192)binary+=String.fromCharCode(...bytes.subarray(i,i+8192));return btoa(binary);
+}
+
 const reply=(body,status=200,origin="https://duveroglobal.com")=>new Response(JSON.stringify(body),{status,headers:{"Content-Type":"application/json; charset=utf-8","Access-Control-Allow-Origin":origin,"Vary":"Origin","Cache-Control":"no-store"}});
 const clean=(v,max=500)=>typeof v==="string"?v.trim().slice(0,max):"";
 export default {async fetch(request,env){
@@ -47,7 +77,7 @@ export default {async fetch(request,env){
  ].map(([k,v])=>k+": "+clean(v,1500));
  const cargo=data.cargo.map((c,i)=>"Line "+(i+1)+": "+["type","size","qty","weight","length","width","height","stack"].map(k=>k+"="+clean(c?.[k],100)).join(", ")).join("\n");
  const body=lines.join("\n")+"\n\nCargo:\n"+cargo;
- const response=await fetch("https://api.resend.com/emails",{method:"POST",headers:{"Authorization":"Bearer "+env.RESEND_API_KEY,"Content-Type":"application/json"},body:JSON.stringify({from:"DUVERO Quotes <info@duveroglobal.com>",to:[env.QUOTE_RECIPIENT],reply_to:email,subject:"DUVERO freight enquiry — "+company,text:body,attachments:attachments.map(a=>({filename:clean(a.filename,120).replace(/[\\/]/g,"_"),content:a.content}))})});
+ const response=await fetch("https://api.resend.com/emails",{method:"POST",headers:{"Authorization":"Bearer "+env.RESEND_API_KEY,"Content-Type":"application/json"},body:JSON.stringify({from:"DUVERO Quotes <info@duveroglobal.com>",to:[env.QUOTE_RECIPIENT],reply_to:email,subject:"DUVERO freight enquiry — "+company,text:body,attachments:[{filename:"DUVERO_Freight_Enquiry.pdf",content:makeQuotePdf(data,company,person,email,phone)},...attachments.map(a=>({filename:clean(a.filename,120).replace(/[\\/]/g,"_"),content:a.content}))]})});
  if(!response.ok)return reply({error:"Email delivery failed"},502,origin);
  return reply({ok:true},200,origin);
 }};
