@@ -101,7 +101,7 @@ function onInput(e){if(e.target.dataset.line!==undefined){const {line,key}=e.tar
  if(e.target.name==="noDimensions")state.noDimensions=e.target.checked;
  if(step===1&&["originLocationSearch","destLocationSearch"].includes(e.target.name)){const p=e.target.name.startsWith("origin")?"origin":"dest";state[p+"Postcode"]="";state[p+"City"]="";clearLocation(p);scheduleLocation(p)}
 }
-function onChange(e){if(["originLocationSearch","destLocationSearch"].includes(e.target.name))return;onInput(e);if(["service","scope","roadType","direction","danger","incoterm","originCountry","destCountry","noDimensions"].includes(e.target.name)){if(e.target.name==="direction"&&state.direction==="export"&&state.incoterm==="EXW")state.incoterm="DAP";
+function onChange(e){if(["originLocationSearch","destLocationSearch"].includes(e.target.name))return;onInput(e);if(["service","scope","roadType","direction","danger","incoterm","originCountry","destCountry","noDimensions"].includes(e.target.name)){if(e.target.name==="service"&&state.service==="multi")state.scope="lcl";if(e.target.name==="direction"&&state.direction==="export"&&state.incoterm==="EXW")state.incoterm="DAP";
  if(["originCountry","destCountry"].includes(e.target.name)){const p=e.target.name.startsWith("origin")?"origin":"dest";state[p+"City"]="";state[p+"Postcode"]="";state[p+"LocationSearch"]="";postalRequests[p]=(postalRequests[p]||0)+1}
  render();
  if(["originCountry","destCountry"].includes(e.target.name))clearLocation(e.target.name.startsWith("origin")?"origin":"dest")}}
