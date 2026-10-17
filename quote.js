@@ -16,7 +16,7 @@ const field=(key,label,type="text",required=false,extra="")=>'<label><span>'+t(l
 function select(key,label,options,required=false){return '<label><span>'+t(label)+(required?' *':'')+'</span><select name="'+key+'" '+(required?'required':'')+'>'+options.map(([v,s])=>'<option value="'+esc(v)+'" '+((state[key]??"")===v?'selected':'')+'>'+esc(s)+'</option>').join("")+'</select></label>'}
 const choice=(key,values)=>'<div class="choice-grid">'+values.map(([v,icon])=>'<label class="choice"><input type="radio" name="'+key+'" value="'+v+'" '+(state[key]===v?'checked':'')+'><span><b>'+icon+' '+t(v)+'</b></span></label>').join("")+'</div>';
 function countryOptions(key){return select(key,"country",[["",t("choose")],...countries.map(([code,en,da])=>[code,lang==="en"?en:da]),["OTHER",t("countryOther")]],true)}
-function renderLocation(prefix,title){return '<fieldset><legend>'+t(title)+'</legend><div class="field-grid">'+countryOptions(prefix+"Country")+field(prefix+"City","city","text",true)+field(prefix+"Postcode","postcode")+field(prefix+"Address","address")+field(prefix+"Party","party")+'</div>'+(state[prefix+"Country"]==="OTHER"?field(prefix+"CountryOther","countryOther","text",true):"")+'</fieldset>'}
+function renderLocation(prefix,title){return '<fieldset><legend>'+t(title)+'</legend><div class="field-grid">'+countryOptions(prefix+"Country")+field(prefix+"Postcode","postcode")+field(prefix+"City","city","text",true)+field(prefix+"Address","address")+field(prefix+"Party","party")+'</div><p class="help" id="'+prefix+'PostcodeStatus" role="status" aria-live="polite">'+(lang==="da"?"Indtast postnummer for automatisk byopslag, hvor det understøttes.":"Enter a postal code to look up the city automatically where supported.")+'</p>'+(state[prefix+"Country"]==="OTHER"?field(prefix+"CountryOther","countryOther","text",true):"")+'</fieldset>'}
 function cargoLine(c,i){const container=state.service==="sea"||state.service==="rail";const isBox=container&&state.scope==="fcl";return '<div class="line-card"><div class="line-head"><strong>'+t("cargo")+' '+(i+1)+'</strong>'+(state.cargo.length>1?'<button type="button" class="text-btn remove-line" data-index="'+i+'">'+t("remove")+'</button>':"")+'</div><div class="field-grid three">'+(isBox?selectLine(i,"size",["20GP","40GP","40HC","45HC"]):selectLine(i,"type",["pallet","package"]))+numberLine(i,"qty",1,1)+numberLine(i,"weight",0.01,0.01)+(isBox?"":numberLine(i,"length",0.01,0.01)+numberLine(i,"width",0.01,0.01)+numberLine(i,"height",0.01,0.01)+selectLine(i,"stack",["no","yes"]))+'</div></div>'}
 function selectLine(i,key,options){return '<label><span>'+t(key)+'</span><select data-line="'+i+'" data-key="'+key+'">'+options.map(v=>'<option value="'+v+'" '+(state.cargo[i][key]===v?"selected":"")+'>'+t(v)+'</option>').join("")+'</select></label>'}
 function numberLine(i,key,min,stepValue){return '<label><span>'+t(key)+' *</span><input type="number" data-line="'+i+'" data-key="'+key+'" min="'+min+'" step="'+stepValue+'" required value="'+esc(state.cargo[i][key])+'"></label>'}
@@ -43,8 +43,47 @@ if(formStep===4&&QUOTE_LIVE&&!finished&&window.turnstile&&TURNSTILE_SITE_KEY){
 }
 const next=document.getElementById("next");next.textContent=finished?(QUOTE_LIVE?(lang==="da"?"Sendt":"Sent"):t("saved")):step===4&&QUOTE_LIVE?(lang==="da"?"Send forespørgsel →":"Send enquiry →"):step===4?t("finish"):step===3?t("review"):t("next");next.disabled=finished||sending;
 wizard.querySelectorAll('input,select,textarea').forEach(el=>{el.addEventListener("change",onChange);if(el.type!=="radio")el.addEventListener("input",onInput)});wizard.querySelectorAll(".remove-line").forEach(el=>el.addEventListener("click",()=>{collect();state.cargo.splice(Number(el.dataset.index),1);render()}));const add=wizard.querySelector("#addLine");if(add)add.addEventListener("click",()=>{collect();state.cargo.push({type:"pallet",qty:1,weight:"",length:"",width:"",height:"",size:"40HC",stack:"no"});render()});}
-function onInput(e){if(e.target.dataset.line!==undefined){const {line,key}=e.target.dataset;state.cargo[Number(line)][key]=e.target.value}else state[e.target.name]=e.target.value}
-function onChange(e){onInput(e);if(["service","scope","direction","danger","originCountry","destCountry"].includes(e.target.name)){if(e.target.name==="direction"&&state.direction==="export"&&state.incoterm==="EXW")state.incoterm="DAP";render()}}
+const postalTimers={};const postalRequests={};
+async function lookupPostal(prefix){
+ const country=state[prefix+"Country"],postcode=String(state[prefix+"Postcode"]||"").trim();
+ const status=document.getElementById(prefix+"PostcodeStatus");
+ if(!country||country==="OTHER"||postcode.length<2){if(status)status.textContent="";return}
+ const requestId=(postalRequests[prefix]||0)+1;postalRequests[prefix]=requestId;
+ if(status)status.textContent=lang==="da"?"Søger efter by…":"Looking up city…";
+ try{
+  const response=await fetch("https://api.zippopotam.us/"+encodeURIComponent(country.toLowerCase())+"/"+encodeURIComponent(postcode),{signal:AbortSignal.timeout(6000)});
+  if(!response.ok)throw Error("Not found");
+  const data=await response.json();
+  if(postalRequests[prefix]!==requestId||state[prefix+"Country"]!==country||String(state[prefix+"Postcode"]||"").trim()!==postcode)return;
+  const places=Array.isArray(data.places)?data.places:[];
+  const names=[...new Set(places.map(p=>p["place name"]).filter(Boolean))];
+  const cityInput=wizard.querySelector('[name="'+prefix+'City"]');
+  if(!names.length)throw Error("No city");
+  if(names.length===1){state[prefix+"City"]=names[0];if(cityInput)cityInput.value=names[0];}
+  else if(cityInput){
+   let selector=document.getElementById(prefix+"CityMatches");
+   if(!selector){selector=document.createElement("select");selector.id=prefix+"CityMatches";selector.setAttribute("aria-label",lang==="da"?"Vælg by":"Select city");cityInput.after(selector)}
+   selector.replaceChildren(...names.map(n=>{const opt=document.createElement("option");opt.value=n;opt.textContent=n;return opt}));
+   selector.onchange=()=>{state[prefix+"City"]=selector.value;cityInput.value=selector.value};
+   if(!names.includes(state[prefix+"City"])){state[prefix+"City"]=names[0];cityInput.value=names[0]}
+  }
+  if(status)status.textContent=lang==="da"?"By fundet. Du kan rette den manuelt.":"City found. You can edit it manually.";
+ }catch{
+  if(postalRequests[prefix]!==requestId)return;
+  if(status)status.textContent=lang==="da"?"Intet automatisk opslag for dette postnummer. Indtast byen manuelt.":"No automatic match for this postal code. Enter the city manually.";
+ }
+}
+function schedulePostal(prefix){
+ clearTimeout(postalTimers[prefix]);postalRequests[prefix]=(postalRequests[prefix]||0)+1;
+ postalTimers[prefix]=setTimeout(()=>lookupPostal(prefix),450);
+}
+function onInput(e){if(e.target.dataset.line!==undefined){const {line,key}=e.target.dataset;state.cargo[Number(line)][key]=e.target.value}else state[e.target.name]=e.target.value;
+ if(step===1&&["originPostcode","destPostcode"].includes(e.target.name))schedulePostal(e.target.name.startsWith("origin")?"origin":"dest");
+}
+function onChange(e){onInput(e);if(["service","scope","direction","danger","originCountry","destCountry"].includes(e.target.name)){if(e.target.name==="direction"&&state.direction==="export"&&state.incoterm==="EXW")state.incoterm="DAP";
+ if(["originCountry","destCountry"].includes(e.target.name)){const p=e.target.name.startsWith("origin")?"origin":"dest";state[p+"City"]="";postalRequests[p]=(postalRequests[p]||0)+1}
+ render();
+ if(["originCountry","destCountry"].includes(e.target.name))schedulePostal(e.target.name.startsWith("origin")?"origin":"dest")}}
 function collect(){wizard.querySelectorAll("input,select,textarea").forEach(el=>{if(el.type==="radio"&&!el.checked)return;if(el.dataset.line!==undefined)state.cargo[Number(el.dataset.line)][el.dataset.key]=el.value;else if(el.name)state[el.name]=el.value})}
 function valid(){const inputs=[...wizard.querySelectorAll("[required]")];for(const el of inputs){if(!el.checkValidity()){el.setAttribute("aria-invalid","true");el.focus();el.reportValidity();return false}}if(step===2){const required=["qty","weight",...(["sea","rail"].includes(state.service)&&state.scope==="fcl"?[]:["length","width","height"])];for(const c of state.cargo)for(const k of required)if(!(Number(c[k])>0)){alert(t("required"));return false}}return true}
 function displayCountry(code,other){if(code==="OTHER")return other||"";return countries.find(c=>c[0]===code)?.[lang==="en"?1:2]||code||"—"}
