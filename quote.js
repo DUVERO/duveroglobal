@@ -43,50 +43,45 @@ if(formStep===4&&QUOTE_LIVE&&!finished&&window.turnstile&&TURNSTILE_SITE_KEY){
 }
 const next=document.getElementById("next");next.textContent=finished?(QUOTE_LIVE?(lang==="da"?"Sendt":"Sent"):t("saved")):step===4&&QUOTE_LIVE?(lang==="da"?"Send forespørgsel →":"Send enquiry →"):step===4?t("finish"):step===3?t("review"):t("next");next.disabled=finished||sending;
 wizard.querySelectorAll('input,select,textarea').forEach(el=>{el.addEventListener("change",onChange);if(el.type!=="radio")el.addEventListener("input",onInput)});wizard.querySelectorAll(".remove-line").forEach(el=>el.addEventListener("click",()=>{collect();state.cargo.splice(Number(el.dataset.index),1);render()}));const add=wizard.querySelector("#addLine");if(add)add.addEventListener("click",()=>{collect();state.cargo.push({type:"pallet",qty:1,weight:"",length:"",width:"",height:"",size:"40HC",stack:"no"});render()});}
-const postalTimers={};const postalRequests={};
-async function lookupPostal(prefix){
- const country=state[prefix+"Country"],postcode=String(state[prefix+"Postcode"]||"").trim();
+const postalTimers={},postalRequests={};
+async function lookupLocation(prefix,kind){
+ const country=state[prefix+"Country"],term=String(state[prefix+(kind==="city"?"City":"Postcode")]||"").trim();
  const status=document.getElementById(prefix+"PostcodeStatus");
- if(!country||country==="OTHER"||postcode.length<2){if(status)status.textContent="";return}
- const requestId=(postalRequests[prefix]||0)+1;postalRequests[prefix]=requestId;
- if(status)status.textContent=lang==="da"?"Søger efter by…":"Looking up city…";
+ if(!country||country==="OTHER"||term.length<2){if(status)status.textContent="";return}
+ const id=(postalRequests[prefix]||0)+1;postalRequests[prefix]=id;
+ if(status)status.textContent=lang==="da"?"Søger i postnumre og byer…":"Searching postal codes and cities…";
  try{
-  const url=country==="DK"
-   ?"https://api.dataforsyningen.dk/postnumre/"+encodeURIComponent(postcode)
-   :"https://api.zippopotam.us/"+encodeURIComponent(country.toLowerCase())+"/"+encodeURIComponent(postcode);
-  const response=await fetch(url,{signal:AbortSignal.timeout(6000)});
-  if(!response.ok)throw Error("Not found");
+  const response=await fetch(QUOTE_API+"locations?country="+encodeURIComponent(country)+"&q="+encodeURIComponent(term));
+  if(!response.ok)throw Error("Unavailable");
   const data=await response.json();
-  if(postalRequests[prefix]!==requestId||state[prefix+"Country"]!==country||String(state[prefix+"Postcode"]||"").trim()!==postcode)return;
-  const places=Array.isArray(data.places)?data.places:[];
-  const names=country==="DK"?(data.navn?[data.navn]:[]):[...new Set(places.map(p=>p["place name"]).filter(Boolean))];
-  const cityInput=wizard.querySelector('[name="'+prefix+'City"]');
-  if(!names.length)throw Error("No city");
-  if(names.length===1){state[prefix+"City"]=names[0];if(cityInput)cityInput.value=names[0];}
-  else if(cityInput){
-   let selector=document.getElementById(prefix+"CityMatches");
-   if(!selector){selector=document.createElement("select");selector.id=prefix+"CityMatches";selector.setAttribute("aria-label",lang==="da"?"Vælg by":"Select city");cityInput.after(selector)}
-   selector.replaceChildren(...names.map(n=>{const opt=document.createElement("option");opt.value=n;opt.textContent=n;return opt}));
-   selector.onchange=()=>{state[prefix+"City"]=selector.value;cityInput.value=selector.value};
-   if(!names.includes(state[prefix+"City"])){state[prefix+"City"]=names[0];cityInput.value=names[0]}
-  }
-  if(status)status.textContent=lang==="da"?"By fundet. Du kan rette den manuelt.":"City found. You can edit it manually.";
- }catch{
-  if(postalRequests[prefix]!==requestId)return;
-  if(status)status.textContent=lang==="da"?"Intet automatisk opslag for dette postnummer. Indtast byen manuelt.":"No automatic match for this postal code. Enter the city manually.";
- }
+  if(postalRequests[prefix]!==id)return;
+  const matches=(data.results||[]).filter(x=>x.postcode&&x.city);
+  const input=wizard.querySelector('[name="'+prefix+(kind==="city"?"City":"Postcode")+'"]');
+  const other=wizard.querySelector('[name="'+prefix+(kind==="city"?"Postcode":"City")+'"]');
+  let selector=document.getElementById(prefix+"LocationMatches");
+  if(selector)selector.remove();
+  if(!matches.length){if(status)status.textContent=lang==="da"?"Ingen match. Du kan indtaste manuelt.":"No match. You can enter it manually.";return}
+  selector=document.createElement("select");selector.id=prefix+"LocationMatches";
+  selector.setAttribute("aria-label",lang==="da"?"Vælg postnummer og by":"Select postal code and city");
+  const prompt=document.createElement("option");prompt.value="";prompt.textContent=lang==="da"?"Vælg postnummer og by…":"Choose postal code and city…";selector.append(prompt);
+  for(const m of matches){const option=document.createElement("option");option.value=JSON.stringify(m);option.textContent=m.postcode+" — "+m.city;selector.append(option)}
+  selector.onchange=()=>{if(!selector.value)return;const m=JSON.parse(selector.value);state[prefix+"Postcode"]=m.postcode;state[prefix+"City"]=m.city;const post=wizard.querySelector('[name="'+prefix+'Postcode"]'),city=wizard.querySelector('[name="'+prefix+'City"]');if(post)post.value=m.postcode;if(city)city.value=m.city;selector.remove();if(status)status.textContent=lang==="da"?"Postnummer og by valgt.":"Postal code and city selected."};
+  input.after(selector);
+  if(matches.length===1){selector.value=JSON.stringify(matches[0]);selector.onchange()}
+  else if(status)status.textContent=lang==="da"?"Vælg det rigtige resultat fra listen.":"Choose the correct result from the list.";
+ }catch{if(postalRequests[prefix]!==id)return;if(status)status.textContent=lang==="da"?"Søgning er midlertidigt utilgængelig. Indtast manuelt.":"Lookup temporarily unavailable. Enter manually."}
 }
-function schedulePostal(prefix){
+function scheduleLocation(prefix,kind){
  clearTimeout(postalTimers[prefix]);postalRequests[prefix]=(postalRequests[prefix]||0)+1;
- postalTimers[prefix]=setTimeout(()=>lookupPostal(prefix),450);
+ postalTimers[prefix]=setTimeout(()=>lookupLocation(prefix,kind),350);
 }
 function onInput(e){if(e.target.dataset.line!==undefined){const {line,key}=e.target.dataset;state.cargo[Number(line)][key]=e.target.value}else state[e.target.name]=e.target.value;
- if(step===1&&["originPostcode","destPostcode"].includes(e.target.name))schedulePostal(e.target.name.startsWith("origin")?"origin":"dest");
+ if(step===1&&["originPostcode","destPostcode","originCity","destCity"].includes(e.target.name))scheduleLocation(e.target.name.startsWith("origin")?"origin":"dest",e.target.name.endsWith("City")?"city":"postcode");
 }
 function onChange(e){onInput(e);if(["service","scope","direction","danger","originCountry","destCountry"].includes(e.target.name)){if(e.target.name==="direction"&&state.direction==="export"&&state.incoterm==="EXW")state.incoterm="DAP";
  if(["originCountry","destCountry"].includes(e.target.name)){const p=e.target.name.startsWith("origin")?"origin":"dest";state[p+"City"]="";postalRequests[p]=(postalRequests[p]||0)+1}
  render();
- if(["originCountry","destCountry"].includes(e.target.name))schedulePostal(e.target.name.startsWith("origin")?"origin":"dest")}}
+ if(["originCountry","destCountry"].includes(e.target.name))scheduleLocation(e.target.name.startsWith("origin")?"origin":"dest","postcode")}}
 function collect(){wizard.querySelectorAll("input,select,textarea").forEach(el=>{if(el.type==="radio"&&!el.checked)return;if(el.dataset.line!==undefined)state.cargo[Number(el.dataset.line)][el.dataset.key]=el.value;else if(el.name)state[el.name]=el.value})}
 function valid(){const inputs=[...wizard.querySelectorAll("[required]")];for(const el of inputs){if(!el.checkValidity()){el.setAttribute("aria-invalid","true");el.focus();el.reportValidity();return false}}if(step===2){const required=["qty","weight",...(["sea","rail"].includes(state.service)&&state.scope==="fcl"?[]:["length","width","height"])];for(const c of state.cargo)for(const k of required)if(!(Number(c[k])>0)){alert(t("required"));return false}}return true}
 function displayCountry(code,other){if(code==="OTHER")return other||"";return countries.find(c=>c[0]===code)?.[lang==="en"?1:2]||code||"—"}
