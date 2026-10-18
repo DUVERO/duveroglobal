@@ -3,6 +3,28 @@
 // Required variable: ALLOWED_ORIGIN=https://duveroglobal.com
 // The public website remains in test mode until explicitly enabled.
 
+// Customer quotation PDFs use the exact same HTML template and fill logic as Preview Quotation.
+// Cloudflare secrets: CF_BROWSER_ACCOUNT_ID, CF_BROWSER_API_TOKEN (Browser Rendering Write).
+async function makeApprovedQuotationPdf(env,record){
+ if(!env.CF_BROWSER_ACCOUNT_ID||!env.CF_BROWSER_API_TOKEN)throw Error("PDF rendering not configured: set CF_BROWSER_ACCOUNT_ID and CF_BROWSER_API_TOKEN in Cloudflare");
+ const base="https://duveroglobal.com/admin/";
+ const [templateResponse,scriptResponse]=await Promise.all([fetch(base+"quotation-pdf-template.html",{cf:{cacheTtl:0}}),fetch(base+"quotation-renderer.js",{cf:{cacheTtl:0}})]);
+ if(!templateResponse.ok||!scriptResponse.ok)throw Error("Approved quotation template unavailable");
+ const [template,script]=await Promise.all([templateResponse.text(),scriptResponse.text()]);
+ if(!template.includes("</body>")||!script.includes("DUVEROQuotationRenderer"))throw Error("Approved quotation template invalid");
+ const recordJson=JSON.stringify(record).replace(/</g,"\\u003c");
+ const html=template.replace("</body>",'<script>'+script+'</script><script>try{window.DUVEROQuotationRenderer.fill(document,'+recordJson+');document.documentElement.setAttribute("data-quotation-ready","yes")}catch(e){document.documentElement.setAttribute("data-quotation-error","yes")}</script></body>');
+ const response=await fetch("https://api.cloudflare.com/client/v4/accounts/"+encodeURIComponent(env.CF_BROWSER_ACCOUNT_ID)+"/browser-rendering/pdf?cacheTTL=0",{
+  method:"POST",headers:{"Authorization":"Bearer "+env.CF_BROWSER_API_TOKEN,"Content-Type":"application/json"},
+  body:JSON.stringify({html,waitForSelector:{selector:'html[data-quotation-ready="yes"]',timeout:15000},pdfOptions:{format:"a4",printBackground:true,preferCSSPageSize:true,margin:{top:"0",right:"0",bottom:"0",left:"0"}}})
+ });
+ if(!response.ok)throw Error("Cloudflare PDF rendering failed (HTTP "+response.status+")");
+ const bytes=new Uint8Array(await response.arrayBuffer());
+ if(bytes.length<100||String.fromCharCode(...bytes.subarray(0,5))!=="%PDF-")throw Error("Cloudflare did not return a valid PDF");
+ let binary="";for(let i=0;i<bytes.length;i+=8192)binary+=String.fromCharCode(...bytes.subarray(i,i+8192));
+ return btoa(binary);
+}
+
 function makeQuotePdf(d,company,person,email,phone,reference="",offerDetails=null){
  if(offerDetails)return makeLegacyQuotePdf(d,company,person,email,phone,reference,offerDetails);
  const encoder=new TextEncoder(),objs=[],pages=[];let cmds=[],y=0;
@@ -176,7 +198,7 @@ if(request.method==="PUT"&&!match[2]){const input=await request.json();const cur
   const d=normalizeEnquiry(record),prices=d.price_lines||[];if(!prices.length||!prices.some(x=>x.amount>0))return jsonReply({error:"Add prices before generating an offer"},400,origin);
   const total=prices.reduce((n,x)=>n+Number(x.amount||0),0);const summary=prices.map(x=>x.description+": "+d.currency+" "+Number(x.amount).toFixed(2)).join(" | ");
   const offer={...d.payload,service:d.service,details:"Quotation "+d.quote_number+" | "+summary+" | TOTAL "+d.currency+" "+total.toFixed(2)+" | Transit "+d.transit+" | Validity "+d.validity+" days | "+d.remarks};
-  const pdf=makeQuotePdf(offer,d.company,d.person,d.email,d.phone,d.quote_number,{currency:d.currency,transit:d.transit,validity:d.validity,prices,total,remarks:d.remarks});
+  let pdf;try{pdf=await makeApprovedQuotationPdf(env,d)}catch(e){return jsonReply({error:"Approved quotation PDF unavailable: "+e.message},503,origin)}
   if(match[2]==="preview")return jsonReply({pdf},200,origin);
   const input=await request.json();if(input.confirmed!==true)return jsonReply({error:"Recipient confirmation required"},400,origin);const recipient=clean(input.recipient,254),subject=clean(input.subject,180);if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient)||!subject)return jsonReply({error:"Invalid recipient or subject"},400,origin);
   if(!env.RESEND_API_KEY)return jsonReply({error:"Email not configured"},503,origin);
