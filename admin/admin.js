@@ -73,7 +73,28 @@ $("currency").addEventListener("change",drawLines);
 $("addLine").onclick=()=>addLine();$("refresh").onclick=load;
 $("back").onclick=()=>{$("editor").classList.add("hidden");$("finance").classList.add("hidden");$("list").classList.remove("hidden");$("sendPanel").classList.add("hidden");load()};
 $("save").onclick=async()=>{try{await save();message("Draft saved")}catch(e){message("Could not save: "+e.message)}};
-$("previewDesign").onclick=async()=>{const tab=window.open("about:blank","_blank");let stage="save";try{if(!selected)throw Error("Select an RFQ first");if(!tab)throw Error("Browser blocked the new tab. Please allow pop-ups for duveroglobal.com");await save();stage="template";const html=await window.DUVEROQuotationRenderer.render(selected);stage="open";tab.document.open();tab.document.write(html);tab.document.close();message("Quotation preview opened in a new tab. Use Ctrl+P to save as PDF.")}catch(e){if(tab&&!tab.closed)tab.close();message("Quotation preview failed during "+stage+": "+e.message)}};
+$("previewDesign").onclick=async()=>{
+ let stage="save";
+ try{
+  if(!selected)throw Error("Select an RFQ first");
+  await save();
+  stage="template";
+  const html=await window.DUVEROQuotationRenderer.render(selected);
+  document.getElementById("duvero-preview-overlay")?.remove();
+  const overlay=document.createElement("div");overlay.id="duvero-preview-overlay";
+  overlay.style.cssText="position:fixed;inset:0;z-index:99999;background:#102b44e6;display:flex;flex-direction:column;padding:12px;gap:10px";
+  const bar=document.createElement("div");bar.style.cssText="display:flex;justify-content:space-between;align-items:center;gap:12px;background:white;padding:10px 16px;border-radius:8px;font-family:Arial,sans-serif";
+  const label=document.createElement("strong");label.textContent="Preview Quotation · "+selected.quote_number;
+  const actions=document.createElement("div");actions.style.cssText="display:flex;gap:8px";
+  const print=document.createElement("button");print.type="button";print.textContent="Print / Save PDF";print.style.cssText="padding:9px 14px;cursor:pointer";
+  const close=document.createElement("button");close.type="button";close.textContent="Close preview";close.style.cssText="padding:9px 14px;cursor:pointer";
+  const frame=document.createElement("iframe");frame.title="DUVERO quotation preview";frame.style.cssText="width:100%;flex:1;min-height:0;background:white;border:0;border-radius:8px";frame.srcdoc=html;
+  print.onclick=()=>{try{frame.contentWindow.focus();frame.contentWindow.print()}catch(e){message("Printing unavailable: "+e.message)}};
+  close.onclick=()=>overlay.remove();
+  actions.append(print,close);bar.append(label,actions);overlay.append(bar,frame);document.body.append(overlay);
+  message("Quotation preview ready");
+ }catch(e){message("Quotation preview failed during "+stage+": "+e.message)}
+};
 $("preview").onclick=async()=>{try{await save();const result=await api("/admin/enquiries/"+encodeURIComponent(selected.id)+"/preview");const a=document.createElement("a");a.href="data:application/pdf;base64,"+result.pdf;a.download="DUVERO_Quotation_"+selected.quote_number+".pdf";a.click()}catch(e){message("Preview failed: "+e.message)}};
 $("openSend").onclick=async()=>{try{await save();$("sendRef").textContent=selected.quote_number;$("recipient").value=selected.email;$("subject").value="DUVERO Quotation – "+selected.quote_number;$("confirm").checked=false;showQuotationStatus(selected);$("sendPanel").classList.remove("hidden");$("sendPanel").scrollIntoView({behavior:"smooth"})}catch(e){message(e.message)}};
 $("cancelSend").onclick=()=>$("sendPanel").classList.add("hidden");
