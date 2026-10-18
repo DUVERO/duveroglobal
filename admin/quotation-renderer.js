@@ -15,7 +15,7 @@ function flag(code){const c=String(code||"").toUpperCase();const start='<svg xml
  if(c==="CN")return start+'<rect width="32" height="22" fill="#de2910"/><polygon points="7,2 8.2,5.6 12,5.6 8.9,7.8 10.1,11.5 7,9.2 3.9,11.5 5.1,7.8 2,5.6 5.8,5.6" fill="#ffde00"/></svg>';
  return "";
 }
-function fillLocation(panel,payload,prefix){if(!panel)return;const raw=payload[prefix+"CountryOther"]||payload[prefix+"Country"]||"";const country=panel.querySelector(".country");if(country){const code=countryCode(raw);country.innerHTML=flag(code)+" "+escapeHtml(countryName(raw))+(code?" ("+escapeHtml(code)+")":"")}
+function fillLocation(panel,payload,prefix){if(!panel)return;const raw=payload[prefix+"CountryOther"]||payload[prefix+"Country"]||"";const country=panel.querySelector(".country");if(country){const code=countryCode(raw);country.innerHTML=escapeHtml(countryName(raw))+(code?" ("+escapeHtml(code)+")":"")}
  kv(panel,[payload[prefix+"City"],payload[prefix+"Postcode"],payload[prefix+"Address"],payload[prefix+"Party"]]);}
 function fill(doc,record){
  const d=record.payload||{},currency=record.currency||"EUR",prices=Array.isArray(record.price_lines)?record.price_lines:[],panels=[...doc.querySelectorAll(".panel")];
