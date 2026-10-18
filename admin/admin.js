@@ -53,9 +53,9 @@ function renderCustomerRfq(x){
  const mode=String(x.service||"").toLowerCase(),scope=String(d.scope||"").toLowerCase();
  let chargeLabel="",chargeValue="";
  if(mode==="air"){chargeLabel="Chargeable Weight";chargeValue=Math.ceil(Math.max(totals.kg,totals.cbm*167))+" kg"}
- else if((mode==="sea"||mode==="rail")&&!scope.includes("fcl")){chargeLabel="Revenue Tons (W/M)";chargeValue=Math.max(totals.kg/1000,totals.cbm).toFixed(3)+" RT"}
+ else if((mode==="sea"||mode==="rail")&&!scope.includes("fcl")){chargeLabel="Revenue Tons (W/M)";chargeValue=Math.max(totals.kg/1000,totals.cbm).toLocaleString("da-DK",{maximumFractionDigits:3})+" RT"}
  else if(mode==="road"){chargeLabel="Chargeable Weight";chargeValue=Math.ceil(Math.max(totals.kg,totals.cbm*333))+" kg"}
- const summary=(cargo.length||d.noDimensions)?'<div style="margin-top:14px;padding:13px 15px;background:#eaf4f6;border-radius:7px;font-weight:700">Total: '+esc(totals.pieces)+' kolli · '+esc(money(totals.kg))+' kg · '+esc(totals.cbm.toFixed(3))+' m³'+(chargeLabel?' · '+esc(chargeLabel)+': '+esc(chargeValue):'')+'</div>':'';
+ const summary=(cargo.length||d.noDimensions)?'<div style="margin-top:14px;padding:13px 15px;background:#eaf4f6;border-radius:7px;font-weight:700">Total: '+esc(totals.pieces)+' kolli · '+esc(money(totals.kg))+' kg · '+esc(Number(totals.cbm).toLocaleString("da-DK",{maximumFractionDigits:3}))+' m³'+(chargeLabel?' · '+esc(chargeLabel)+': '+esc(chargeValue):'')+'</div>':'';
  return '<div class="rfq-info">'+fields.filter(x=>x[1]!==undefined&&x[1]!==null&&x[1]!=="").map(([k,v])=>'<div><span>'+esc(k)+'</span><strong>'+esc(v)+'</strong></div>').join("")+'</div>'+goods+summary;
 }
 
