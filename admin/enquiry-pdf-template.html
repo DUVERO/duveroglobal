@@ -9,7 +9,8 @@ function esc(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&l
 function val(v){return esc(v||"—")}
 function kv(rows){return rows.map(([k,v])=>'<div class="kv"><span>'+esc(k)+'</span><strong>'+val(v)+'</strong></div>').join("")}
 function panel(name,icon,body){return '<section class="panel"><div class="heading"><span class="ico">'+icon+'</span>'+esc(name)+'</div>'+body+'</section>'}
-function renderLocationPanel(title,l){return panel(title,"📍",'<div class="content"><div class="country">'+val(l.country)+'</div>'+kv([["City",l.city],["Postal code",l.postcode],["Address",l.address],["Party",l.party]])+'</div>')}
+function countryFlag(country){const c=String(country||"").match(/\(([A-Za-z]{2})\)/)?.[1]?.toUpperCase();return c?String.fromCodePoint(...[...c].map(ch=>127397+ch.charCodeAt(0)))+" ":""}
+function renderLocationPanel(title,l){return panel(title,"📍",'<div class="content"><div class="country">'+countryFlag(l.country)+val(l.country)+'</div>'+kv([["City",l.city],["Postal code",l.postcode],["Address",l.address],["Party",l.party]])+'</div>')}
 function render(d){
  const goods=d.goods||[],weight=goods.reduce((n,g)=>n+Number(g.weight||0)*Number(g.qty||0),0),volume=goods.reduce((n,g)=>n+(Number(g.length||0)*Number(g.width||0)*Number(g.height||0)/1e6)*Number(g.qty||0),0),qty=goods.reduce((n,g)=>n+Number(g.qty||0),0);
  const stat=[["✈","Service",d.service],["⇄","Direction",d.direction],["▤","Incoterms",d.incoterm],["⬡","Transport type",d.transportType]].map(([icon,label,value])=>'<div class="summary-item"><div class="bubble">'+icon+'</div><div><div class="small">'+label+'</div><div class="value">'+val(value)+'</div></div></div>').join("");
