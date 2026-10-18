@@ -1,0 +1,2 @@
+CREATE TABLE IF NOT EXISTS enquiry_emails (id INTEGER PRIMARY KEY AUTOINCREMENT, enquiry_id INTEGER NOT NULL REFERENCES enquiries(id), sender TEXT NOT NULL DEFAULT '', recipient TEXT NOT NULL DEFAULT '', subject TEXT NOT NULL DEFAULT '', body TEXT NOT NULL DEFAULT '', email_date TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
+CREATE INDEX IF NOT EXISTS idx_enquiry_emails_enquiry ON enquiry_emails(enquiry_id, id);
