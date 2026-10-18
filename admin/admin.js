@@ -10,7 +10,7 @@ function customerName(x){const domain=String(x.email||"").toLowerCase().split("@
 function renderEnquiries(){
  const q=$("searchEnquiries").value.trim().toLocaleLowerCase(),status=$("statusFilter").value,archive=$("archiveFilter").value;
  const filtered=records.filter(x=>{
- const text=[x.company,x.person,x.email,x.quote_number,x.service,x.origin,x.destination].join(" ").toLocaleLowerCase();
+ const text=[customerName(x),x.company,x.person,x.email,x.quote_number,x.service,x.origin,x.destination].join(" ").toLocaleLowerCase();
  return (!q||text.includes(q))&&(status==="all"||x.status===status)&&(archive==="all"||(archive==="archived"?Number(x.archived)===1:Number(x.archived)!==1));
  });
  $("resultCount").textContent=filtered.length+" of "+records.length+" enquiries";
