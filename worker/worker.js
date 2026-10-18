@@ -43,9 +43,20 @@ async function adminRoute(request,env,origin,url){
  if(!await adminAuth(request,env))return jsonReply({error:"Login required"},401,origin);
  const db=env.DUVERO_DB;
  if(url.pathname==="/admin/enquiries"&&request.method==="GET"){const data=await db.prepare("SELECT * FROM enquiries ORDER BY created_at DESC,id DESC LIMIT 200").all();return jsonReply({enquiries:(data.results||[]).map(normalizeEnquiry)},200,origin)}
- const match=url.pathname.match(/^\/admin\/enquiries\/(\d+)(?:\/(preview|send|finance))?$/);if(!match)return jsonReply({error:"Not found"},404,origin);
+ const match=url.pathname.match(/^\/admin\/enquiries\/(\d+)(?:\/(preview|send|finance|tracking))?$/);if(!match)return jsonReply({error:"Not found"},404,origin);
  const id=Number(match[1]);const record=await db.prepare("SELECT * FROM enquiries WHERE id=?").bind(id).first();if(!record)return jsonReply({error:"Enquiry not found"},404,origin);
- if(request.method==="PUT"&&match[2]==="finance"){
+ if(request.method==="PUT"&&match[2]==="tracking"){
+ const input=await request.json();
+ const allowed=["New","Draft","Quoted","Accepted","Declined","Closed"];
+ const status=allowed.includes(input.status)?input.status:record.status;
+ const followup=String(input.followup_date||"");
+ if(followup&&!/^\\d{4}-\\d{2}-\\d{2}$/.test(followup))return jsonReply({error:"Invalid follow-up date"},400,origin);
+ const notes=clean(input.internal_notes,4000);
+ const archived=input.archived===true?1:0;
+ await db.prepare("UPDATE enquiries SET status=?,followup_date=?,internal_notes=?,archived=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(status,followup,notes,archived,id).run();
+ return jsonReply({enquiry:normalizeEnquiry(await db.prepare("SELECT * FROM enquiries WHERE id=?").bind(id).first())},200,origin);
+}
+if(request.method==="PUT"&&match[2]==="finance"){
  const input=await request.json();
  const parse=a=>(Array.isArray(a)?a:[]).slice(0,100).map(x=>({description:clean(x.description,150),supplier:clean(x.supplier,100),invoice_number:clean(x.invoice_number,100),amount:Number(x.amount)})).filter(x=>x.description&&Number.isFinite(x.amount)&&x.amount>=0&&x.amount<1e9);
  const costs=parse(input.cost_lines),invoices=parse(input.invoice_lines);
