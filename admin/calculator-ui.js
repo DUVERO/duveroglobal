@@ -83,7 +83,7 @@ async function calcCreate(kind,data){try{await api("/admin/"+({suppliers:"suppli
 $("viewSuppliers").onclick=()=>calcShowSetup("suppliers");
 $("viewCharges").onclick=()=>calcShowSetup("charges");
 $("viewFactors").onclick=()=>calcShowSetup("factors");
-$("setupBack").onclick=()=>{$("setupPanel").classList.add("hidden");$("list").classList.remove("hidden")};
+
 
 const calcOriginalQuotes=$("viewQuotes").onclick,calcOriginalCustomers=$("viewCustomers").onclick,calcOriginalArchive=$("viewArchive").onclick;
 $("viewQuotes").onclick=()=>{$("setupPanel").classList.add("hidden");calcOriginalQuotes()};
