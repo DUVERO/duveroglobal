@@ -28,12 +28,20 @@ function fill(doc,record){
  if(goods){const cargo=Array.isArray(d.cargo)?d.cargo:[];let qty=0,kg=0,cbm=0;
  const noDim=!!d.noDimensions;
  const entries=noDim?[{type:"Bulk",description:d.commodity||"—",qty:d.totalPieces||"—",weight:d.totalWeight||0,volume:d.totalCbm||0}]:cargo;
- goods.querySelector("tbody").innerHTML=entries.map((g,i)=>{const q=num(g.qty),w=noDim?num(g.weight):q*num(g.weight),v=noDim?num(g.volume):q*num(g.length)*num(g.width)*num(g.height)/1e6;qty+=q;kg+=w;cbm+=v;return "<tr>"+[i+1,g.type||g.size||"—",g.description||d.commodity||"—",noDim?"Only kg / CBM":[g.length,g.width,g.height].every(Boolean)?[g.length,g.width,g.height].join(" × "):"—",g.qty||"—",w.toFixed(2),v.toFixed(3),g.stack||"—"].map(x=>"<td>"+escapeHtml(x)+"</td>").join("")+"</tr>"}).join("");
+ goods.querySelector("tbody").innerHTML=entries.map((g,i)=>{const q=num(g.qty),w=noDim?num(g.weight):q*num(g.weight),v=noDim?num(g.volume):q*num(g.length)*num(g.width)*num(g.height)/1e6;qty+=q;kg+=w;cbm+=v;return "<tr>"+[i+1,((d.scope==="fcl"&&(record.service==="sea"||record.service==="rail"))?g.size:(g.type||g.size))||"—",g.description||d.commodity||"—",noDim?"Only kg / CBM":[g.length,g.width,g.height].every(Boolean)?[g.length,g.width,g.height].join(" × "):"—",g.qty||"—",w.toFixed(2),v.toFixed(3),g.stack||"—"].map(x=>"<td>"+escapeHtml(x)+"</td>").join("")+"</tr>"}).join("");
  const totals=goods.querySelector("tfoot tr");if(totals){const t=totals.querySelectorAll("td");if(t[1])t[1].textContent=display(qty||d.totalPieces);if(t[2])t[2].textContent=money(kg)+" kg";if(t[3])t[3].textContent=cbm.toFixed(3)+" m³";if(t[4]){const mode=String(record.service||"").toLowerCase(),scope=String(d.scope||"").toLowerCase();let label="",value="";if(mode==="air"){label="Chargeable Weight";value=Math.ceil(Math.max(kg,cbm*167))+" kg"}else if((mode==="sea"||mode==="rail")&&!scope.includes("fcl")){label="Revenue Tons (W/M)";value=Math.max(kg/1000,cbm).toFixed(3)+" RT"}else if(mode==="road"){label="Chargeable Weight";value=Math.ceil(Math.max(kg,cbm*333))+" kg"}t[4].textContent=label?label+": "+value:"";t[4].style.whiteSpace="nowrap";t[4].style.fontWeight="700";}}
  }
  const more=panels.find(p=>p.querySelector(".heading")?.textContent.includes("Additional Information"));kv(more,[d.ready,d.deliveryRequiredBy,d.danger||"No",d.un,d.details||record.remarks]);
  const customer=panels.find(p=>p.querySelector(".heading")?.textContent.includes("Customer Details"));kv(customer,[record.company,d.registrationNumber,d.companyAddress,[d.companyPostcode,d.companyCity].filter(Boolean).join(" "),d.companyCountry,record.person,record.email,record.phone]);
  const notes=doc.querySelector(".notes");if(notes)notes.innerHTML="<h3>▤ &nbsp; Notes</h3>Thank you for your enquiry. This quotation is subject to the stated validity and conditions.<br>Reference: "+escapeHtml(record.quote_number);
+ if(record.document_type==="enquiry"){
+  const heading=doc.querySelector(".header h1");if(heading)heading.textContent="Freight Enquiry";
+  const subtitle=doc.querySelector(".header .subtitle");if(subtitle)subtitle.textContent="Quote Request from DUVERO Website";
+  const offer=doc.querySelector(".offer-note");if(offer)offer.remove();
+  const price=doc.querySelector(".price-table")?.closest(".panel");if(price)price.remove();
+  const terms=doc.querySelector(".terms");if(terms)terms.remove();
+  const notes=doc.querySelector(".notes");if(notes)notes.innerHTML="<h3>▤ &nbsp; Notes</h3>Freight enquiry received via DUVERO website. Please provide your best freight rate and transit time.";
+ }
  return doc;
 }
 async function render(record){if(!record?.quote_number)throw Error("RFQ number missing");const resp=await fetch("/admin/quotation-pdf-template.html",{cache:"no-store"});if(!resp.ok)throw Error("Approved quotation template unavailable");const html=await resp.text();const doc=new DOMParser().parseFromString(html,"text/html");fill(doc,record);return "<!doctype html>\\n"+doc.documentElement.outerHTML}
