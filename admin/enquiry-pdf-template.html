@@ -10,7 +10,7 @@ function val(v){return esc(v||"—")}
 function kv(rows){return rows.map(([k,v])=>'<div class="kv"><span>'+esc(k)+'</span><strong>'+val(v)+'</strong></div>').join("")}
 function panel(name,icon,body){return '<section class="panel"><div class="heading"><span class="ico">'+icon+'</span>'+esc(name)+'</div>'+body+'</section>'}
 function countryFlag(country){
- const c=String(country||"").match(/\\(([A-Za-z]{2})\\)/)?.[1]?.toUpperCase();
+ const c=String(country||"").match(/\(([A-Za-z]{2})\)/)?.[1]?.toUpperCase();
  if(!c)return "";
  const flagStart='<svg aria-label="'+c+' flag" role="img" width="31" height="22" viewBox="0 0 30 20" style="vertical-align:middle;margin-right:9px;border:1px solid #d6dfe5;border-radius:2px;overflow:hidden">';
  if(c==="DK")return flagStart+'<rect width="30" height="20" fill="#c8102e"/><path d="M10 0v20M0 10h30" stroke="#fff" stroke-width="3"/></svg>';
