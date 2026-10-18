@@ -3,12 +3,12 @@
 // Required variable: ALLOWED_ORIGIN=https://duveroglobal.com
 // The public website remains in test mode until explicitly enabled.
 
-function makeQuotePdf(d,company,person,email,phone){
+function makeQuotePdf(d,company,person,email,phone,reference=""){
  const cleanPdf=v=>String(v??"").replace(/[^\x20-\x7e]/g," ").replace(/\\/g,"\\\\").replace(/\(/g,"\\(").replace(/\)/g,"\\)").slice(0,110);
  const labels={sea:"Sea Freight - LCL",air:"Air Freight",road:"Road Freight - LTL",rail:"Rail Freight - LCL",courier:"Courier / Express"};
  const pages=[];let cmds=[],y=700;
  const text=(v,x,yy,size=10,bold=false)=>cmds.push("BT /"+(bold?"B":"R")+" "+size+" Tf 1 0 0 1 "+x+" "+yy+" Tm ("+cleanPdf(v)+") Tj ET");
- const start=()=>{cmds=["0.03 0.18 0.28 rg 0 724 595 88 re f","0 0.58 0.6 rg 0 720 595 4 re f"];cmds.push("1 1 1 rg");text("DUVERO",40,768,27,true);text("GLOBAL FREIGHT & LOGISTICS",41,746,9);text("FREIGHT ENQUIRY",388,765,14,true);cmds.push("0.04 0.19 0.28 rg");y=690};
+ const start=()=>{cmds=["0.03 0.18 0.28 rg 0 724 595 88 re f","0 0.58 0.6 rg 0 720 595 4 re f"];cmds.push("1 1 1 rg");text("DUVERO",40,768,27,true);text("GLOBAL FREIGHT & LOGISTICS",41,746,9);text("FREIGHT ENQUIRY",388,765,14,true);if(reference)text(reference,388,744,10,true);cmds.push("0.04 0.19 0.28 rg");y=690};
  const next=()=>{pages.push(cmds.join("\n"));start()};
  const check=h=>{if(y-h<48)next()};
  const section=v=>{check(45);cmds.push("0.91 0.96 0.96 rg 36 "+(y-11)+" 523 28 re f","0.04 0.19 0.28 rg");text(v.toUpperCase(),46,y,11,true);y-=43};
@@ -143,8 +143,13 @@ export default {async fetch(request,env){
  ].map(([k,v])=>k+": "+clean(v,1500));
  const cargo=data.cargo.map((c,i)=>"Line "+(i+1)+": "+["type","size","qty","weight","length","width","height","stack"].map(k=>k+"="+clean(c?.[k],100)).join(", ")).join("\n");
  const body=lines.join("\n")+"\n\nCargo:\n"+cargo;
- const response=await fetch("https://api.resend.com/emails",{method:"POST",headers:{"Authorization":"Bearer "+env.RESEND_API_KEY,"Content-Type":"application/json"},body:JSON.stringify({from:"DUVERO Quotes <info@duveroglobal.com>",to:[env.QUOTE_RECIPIENT],reply_to:email,subject:"DUVERO freight enquiry — "+company,text:body,attachments:[{filename:"DUVERO_Freight_Enquiry.pdf",content:makeQuotePdf(data,company,person,email,phone)},...attachments.map(a=>({filename:clean(a.filename,120).replace(/[\\/]/g,"_"),content:a.content}))]})});
+ let quoteNumbers=[];
+ if(!env.DUVERO_DB)return reply({error:"Quote database is not configured; cannot allocate quotation numbers"},503,origin);
+ try{quoteNumbers=await saveEnquiries(env,data,company,person,email,phone)}catch(e){return reply({error:"Could not allocate quote numbers; enquiry not sent"},500,origin)}
+ const selectedModes=data.service==="multi"?data.multiModes.filter(m=>["sea","air","road","rail","courier"].includes(m)):[data.service];
+ const pdfAttachments=quoteNumbers.map((number,i)=>({filename:"DUVERO_Enquiry_"+number+".pdf",content:makeQuotePdf({...data,service:selectedModes[i],scope:data.service==="multi"?"lcl":data.scope},company,person,email,phone,number)}));
+ const response=await fetch("https://api.resend.com/emails",{method:"POST",headers:{"Authorization":"Bearer "+env.RESEND_API_KEY,"Content-Type":"application/json"},body:JSON.stringify({from:"DUVERO Quotes <info@duveroglobal.com>",to:[env.QUOTE_RECIPIENT],reply_to:email,subject:"DUVERO freight enquiry — "+company+" — "+quoteNumbers.join(" / "),text:"Quote numbers: "+quoteNumbers.join(", ")+"\n\n"+body,attachments:[...pdfAttachments,...attachments.map(a=>({filename:clean(a.filename,120).replace(/[\\/]/g,"_"),content:a.content}))]})});
  if(!response.ok)return reply({error:"Email delivery failed"},502,origin);
- let quoteNumbers=[];if(env.DUVERO_DB){try{quoteNumbers=await saveEnquiries(env,data,company,person,email,phone)}catch(e){return reply({error:"Email sent but enquiry could not be saved. Contact DUVERO."},500,origin)}}
+ 
  return reply({ok:true,quoteNumbers},200,origin);
 }};
