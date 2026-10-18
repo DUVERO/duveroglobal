@@ -10,12 +10,12 @@ function val(v){return esc(v||"—")}
 function kv(rows){return rows.map(([k,v])=>'<div class="kv"><span>'+esc(k)+'</span><strong>'+val(v)+'</strong></div>').join("")}
 function panel(name,icon,body){return '<section class="panel"><div class="heading"><span class="ico">'+icon+'</span>'+esc(name)+'</div>'+body+'</section>'}
 function countryFlag(country){
- const c=String(country||"").match(/\(([A-Za-z]{2})\)/)?.[1]?.toUpperCase();
- if(!c)return "";
- const flagStart='<svg aria-label="'+c+' flag" role="img" width="31" height="22" viewBox="0 0 30 20" style="vertical-align:middle;margin-right:9px;border:1px solid #d6dfe5;border-radius:2px;overflow:hidden">';
- if(c==="DK")return flagStart+'<rect width="30" height="20" fill="#c8102e"/><path d="M10 0v20M0 10h30" stroke="#fff" stroke-width="3"/></svg>';
- if(c==="CN")return flagStart+'<rect width="30" height="20" fill="#de2910"/><path d="M6 3.2l1.1 3.3h3.5l-2.8 2.1 1.1 3.3-2.9-2.1-2.8 2.1 1.1-3.3-2.8-2.1h3.5z" fill="#ffde00" transform="translate(0 -1) scale(.9)"/><circle cx="14" cy="3" r="1" fill="#ffde00"/><circle cx="17" cy="6" r="1" fill="#ffde00"/><circle cx="17" cy="10" r="1" fill="#ffde00"/><circle cx="14" cy="13" r="1" fill="#ffde00"/></svg>';
- return '<img alt="'+c+' flag" width="31" height="22" style="vertical-align:middle;margin-right:9px;border:1px solid #d6dfe5;border-radius:2px" src="https://flagcdn.com/w40/'+c.toLowerCase()+'.png">';
+ const name=String(country||"").toLowerCase();
+ const code=name.includes("china")||name.includes("(cn)")?"CN":name.includes("denmark")||name.includes("(dk)")?"DK":"";
+ const start='<svg xmlns="http://www.w3.org/2000/svg" width="32" height="22" viewBox="0 0 32 22" style="display:inline-block;vertical-align:middle;margin-right:9px;border:1px solid #d6dfe5;border-radius:2px" aria-label="Country flag">';
+ if(code==="DK")return start+'<rect width="32" height="22" fill="#c8102e"/><rect x="10" width="4" height="22" fill="#fff"/><rect y="9" width="32" height="4" fill="#fff"/></svg>';
+ if(code==="CN")return start+'<rect width="32" height="22" fill="#de2910"/><polygon points="7,2 8.2,5.6 12,5.6 8.9,7.8 10.1,11.5 7,9.2 3.9,11.5 5.1,7.8 2,5.6 5.8,5.6" fill="#ffde00"/><circle cx="15" cy="3" r="1" fill="#ffde00"/><circle cx="18" cy="6" r="1" fill="#ffde00"/><circle cx="18" cy="10" r="1" fill="#ffde00"/><circle cx="15" cy="13" r="1" fill="#ffde00"/></svg>';
+ return "";
 }
 function renderLocationPanel(title,l){return panel(title,"📍",'<div class="content"><div class="country">'+countryFlag(l.country)+val(l.country)+'</div>'+kv([["City",l.city],["Postal code",l.postcode],["Address",l.address],["Party",l.party]])+'</div>')}
 function render(d){
