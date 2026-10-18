@@ -51,6 +51,27 @@ async function adminRoute(request,env,origin,url){
  if(url.pathname==="/admin/conversion-factors"&&request.method==="POST"){const x=await request.json(),value=Number(x.value);if(!["air","road","rail","sea"].includes(x.name)||!Number.isFinite(value)||value<=0||value>10000)return jsonReply({error:"Invalid conversion factor"},400,origin);await db.prepare("INSERT INTO calculation_settings(name,value) VALUES(?,?) ON CONFLICT(name) DO UPDATE SET value=excluded.value").bind(x.name,value).run();return jsonReply({ok:true},200,origin)}
  if(url.pathname==="/admin/suppliers"&&request.method==="PUT"){const x=await request.json(),id=Number(x.id),name=clean(x.name,150);if(!Number.isInteger(id)||id<1||!name)return jsonReply({error:"Invalid supplier"},400,origin);await db.prepare("UPDATE suppliers SET name=?,email=?,categories=?,active=? WHERE id=?").bind(name,clean(x.email,250),JSON.stringify(Array.isArray(x.categories)?x.categories:[]),x.active===false?0:1,id).run();return jsonReply({ok:true},200,origin)}
  if(url.pathname==="/admin/charge-definitions"&&request.method==="PUT"){const x=await request.json(),id=Number(x.id),name=clean(x.name,120);if(!Number.isInteger(id)||id<1||!name||!["flat","gross","cw","cbm","rt"].includes(x.basis)||!["Origin","Destination"].includes(x.section))return jsonReply({error:"Invalid charge definition"},400,origin);await db.prepare("UPDATE charge_definitions SET name=?,basis=?,section=?,active=? WHERE id=?").bind(name,x.basis,x.section,x.active===false?0:1,id).run();return jsonReply({ok:true},200,origin)}
+ if(url.pathname==="/admin/address-book"&&request.method==="GET"){
+  const kind=url.searchParams.get("kind");if(!["supplier","customer"].includes(kind))return jsonReply({error:"Invalid address book kind"},400,origin);
+  const result=await db.prepare("SELECT * FROM address_book WHERE kind=? ORDER BY company").bind(kind).all();
+  return jsonReply({items:result.results||[]},200,origin);
+ }
+ if(url.pathname==="/admin/address-book"&&request.method==="POST"){
+  const x=await request.json(),kind=x.kind,company=clean(x.company,150);
+  if(!["supplier","customer"].includes(kind)||!company)return jsonReply({error:"Company and type required"},400,origin);
+  const values=["address","country","city","postcode","phone","email","contact","notes"].map(k=>clean(x[k],k==="notes"?2000:250));
+  const found=await db.prepare("SELECT id FROM address_book WHERE kind=? AND company=? COLLATE NOCASE").bind(kind,company).first();
+  if(found)return jsonReply({error:"Company already exists in address book"},409,origin);
+  await db.prepare("INSERT INTO address_book(kind,company,address,country,city,postcode,phone,email,contact,notes) VALUES(?,?,?,?,?,?,?,?,?,?)").bind(kind,company,...values).run();
+  return jsonReply({ok:true},201,origin);
+ }
+ if(url.pathname==="/admin/address-book"&&request.method==="PUT"){
+  const x=await request.json(),id=Number(x.id),company=clean(x.company,150);
+  if(!Number.isInteger(id)||id<1||!company)return jsonReply({error:"Invalid company"},400,origin);
+  const values=["address","country","city","postcode","phone","email","contact","notes"].map(k=>clean(x[k],k==="notes"?2000:250));
+  const result=await db.prepare("UPDATE address_book SET company=?,address=?,country=?,city=?,postcode=?,phone=?,email=?,contact=?,notes=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(company,...values,id).run();
+  return jsonReply({ok:true},200,origin);
+ }
  const match=url.pathname.match(/^\/admin\/enquiries\/(\d+)(?:\/(preview|send|finance|tracking|emails|calculation))?$/);if(!match)return jsonReply({error:"Not found"},404,origin);
  const id=Number(match[1]);const record=await db.prepare("SELECT * FROM enquiries WHERE id=?").bind(id).first();if(!record)return jsonReply({error:"Enquiry not found"},404,origin);
  if(match[2]==="calculation"&&request.method==="PUT"){
