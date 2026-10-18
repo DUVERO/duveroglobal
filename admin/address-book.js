@@ -1,12 +1,12 @@
 "use strict";
 // Unified company address book for DUVERO suppliers and customers.
 const abFields=[["company","Company name"],["address","Street address"],["postcode","Postal code"],["city","City"],["country","Country"],["phone","Phone"],["email","Email"],["contact","Contact person"],["notes","Internal notes"]];
-let abKind="",abItems=[],abCurrent=null,abFilter="",abCompanyIdentities=[];
+let abKind="",abItems=[],abCurrent=null,abFilter="",abCompanyIdentities=[],abSuppliers=[];
 const abNorm=s=>String(s||"").trim().toLocaleLowerCase().replace(/[^a-z0-9æøå]/g,"");
 const abField=(k,label,v="")=>'<div><label>'+esc(label)+'</label>'+(k==="notes"?'<textarea data-ab="'+k+'" rows="2">'+esc(v)+'</textarea>':'<input data-ab="'+k+'" value="'+esc(v)+'" placeholder="'+esc(label)+'">')+'</div>';
 function abHost(){return abKind==="supplier"?$("setupItems"):$("customerAddressBook")}
 function abBase(){
- const supplier=abKind==="supplier",existing=supplier?calcSuppliers.map(x=>({company:x.name,email:x.email||"",categories:x.categories||[],supplierId:x.id})):Array.from(new Map(records.map(x=>[abNorm(customerName(x)),{company:customerName(x),email:x.email||"",rfqs:records.filter(y=>customerName(y)===customerName(x)).length}])).values());
+ const supplier=abKind==="supplier",existing=supplier?abSuppliers.map(x=>({company:x.name,email:x.email||"",categories:x.categories||[],supplierId:x.id})):Array.from(new Map(records.map(x=>[abNorm(customerName(x)),{company:customerName(x),email:x.email||"",rfqs:records.filter(y=>customerName(y)===customerName(x)).length}])).values());
  const map=new Map(existing.map(x=>[abNorm(x.company),x]));
  if(!supplier)for(const c of abCompanyIdentities){const key=abNorm(c.company_name),old=map.get(key)||{};map.set(key,{...old,company:c.company_name,country:c.country,registrationNumber:c.registration_number,companyId:c.id,contactsCount:c.contacts_count})}
  for(const a of abItems){const key=abNorm(a.company),old=map.get(key)||{};map.set(key,{...old,...a})}
@@ -47,7 +47,8 @@ async function abSave(){
 async function abOpen(kind){
  abKind=kind;abFilter="";
  try{
-  const [book,identities]=await Promise.all([api("/admin/address-book?kind="+kind),kind==="supplier"?Promise.resolve({items:[]}):api("/admin/customer-companies")]);
+  const [book,identities,suppliers]=await Promise.all([api("/admin/address-book?kind="+kind),kind==="supplier"?Promise.resolve({items:[]}):api("/admin/customer-companies"),kind==="supplier"?api("/admin/suppliers"):Promise.resolve({items:[]})]);
+  abSuppliers=suppliers.items||[];
   abCompanyIdentities=identities.items||[];
   abItems=book.items||[];
   if(kind==="customer"){$("customerAddressBook").classList.remove("hidden");$("enquiries").classList.add("hidden");$("list").querySelector(".grid").classList.add("hidden");$("list").querySelector("#searchEnquiries").classList.add("hidden");$("list").querySelector('label[for="searchEnquiries"]').classList.add("hidden")}
