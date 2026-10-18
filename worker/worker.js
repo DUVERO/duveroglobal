@@ -43,9 +43,23 @@ async function adminRoute(request,env,origin,url){
  if(!await adminAuth(request,env))return jsonReply({error:"Login required"},401,origin);
  const db=env.DUVERO_DB;
  if(url.pathname==="/admin/enquiries"&&request.method==="GET"){const data=await db.prepare("SELECT * FROM enquiries ORDER BY created_at DESC,id DESC LIMIT 200").all();return jsonReply({enquiries:(data.results||[]).map(normalizeEnquiry)},200,origin)}
- const match=url.pathname.match(/^\/admin\/enquiries\/(\d+)(?:\/(preview|send))?$/);if(!match)return jsonReply({error:"Not found"},404,origin);
+ const match=url.pathname.match(/^\/admin\/enquiries\/(\d+)(?:\/(preview|send|finance))?$/);if(!match)return jsonReply({error:"Not found"},404,origin);
  const id=Number(match[1]);const record=await db.prepare("SELECT * FROM enquiries WHERE id=?").bind(id).first();if(!record)return jsonReply({error:"Enquiry not found"},404,origin);
- if(request.method==="PUT"&&!match[2]){const input=await request.json();const currency=["EUR","DKK","USD"].includes(input.currency)?input.currency:"EUR";const price_lines=Array.isArray(input.price_lines)?input.price_lines.slice(0,30).map(x=>({description:clean(x.description,120),amount:Number(x.amount)||0})).filter(x=>x.description&&x.amount>=0&&x.amount<1e9):[];await db.prepare("UPDATE enquiries SET currency=?,transit=?,validity=?,incoterm=?,remarks=?,price_lines=?,status=CASE WHEN status='New' THEN 'Draft' ELSE status END,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(currency,clean(input.transit,80),Math.max(1,Math.min(365,Number(input.validity)||7)),clean(input.incoterm,20),clean(input.remarks,1000),JSON.stringify(price_lines),id).run();return jsonReply({enquiry:normalizeEnquiry(await db.prepare("SELECT * FROM enquiries WHERE id=?").bind(id).first())},200,origin)}
+ if(request.method==="PUT"&&match[2]==="finance"){
+ const input=await request.json();
+ const parse=a=>(Array.isArray(a)?a:[]).slice(0,100).map(x=>({description:clean(x.description,150),supplier:clean(x.supplier,100),invoice_number:clean(x.invoice_number,100),amount:Number(x.amount)})).filter(x=>x.description&&Number.isFinite(x.amount)&&x.amount>=0&&x.amount<1e9);
+ const costs=parse(input.cost_lines),invoices=parse(input.invoice_lines);
+ const actual={pieces:Number(input.shipment_actual?.pieces)||0,weight:Number(input.shipment_actual?.weight)||0,cbm:Number(input.shipment_actual?.cbm)||0};
+ const revise=input.revise_sale===true,reason=clean(input.reason,500);
+ if(revise&&!reason.trim())return jsonReply({error:"Reason required for sale price revision"},400,origin);
+ const prices=revise?parse(input.price_lines).map(x=>({description:x.description,amount:x.amount})):JSON.parse(record.price_lines||"[]");
+ const revision=Number(record.price_revision||0)+(revise?1:0);
+ const queries=[db.prepare("UPDATE enquiries SET cost_lines=?,invoice_lines=?,shipment_actual=?,price_lines=?,price_revision=?,price_revision_reason=?,status=CASE WHEN ?=1 AND status='Quoted' THEN 'Revised draft' ELSE status END,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(JSON.stringify(costs),JSON.stringify(invoices),JSON.stringify(actual),JSON.stringify(prices),revision,revise?reason:record.price_revision_reason,revise?1:0,id)];
+ if(revise)queries.push(db.prepare("INSERT INTO quotation_revisions(enquiry_id,revision_number,snapshot,reason) VALUES(?,?,?,?)").bind(id,revision,JSON.stringify({previous:JSON.parse(record.price_lines||"[]"),current:prices,actual}),reason));
+ await db.batch(queries);
+ return jsonReply({enquiry:normalizeEnquiry(await db.prepare("SELECT * FROM enquiries WHERE id=?").bind(id).first())},200,origin);
+}
+if(request.method==="PUT"&&!match[2]){const input=await request.json();const currency=["EUR","DKK","USD"].includes(input.currency)?input.currency:"EUR";const price_lines=Array.isArray(input.price_lines)?input.price_lines.slice(0,30).map(x=>({description:clean(x.description,120),amount:Number(x.amount)||0})).filter(x=>x.description&&x.amount>=0&&x.amount<1e9):[];await db.prepare("UPDATE enquiries SET currency=?,transit=?,validity=?,incoterm=?,remarks=?,price_lines=?,status=CASE WHEN status='New' THEN 'Draft' ELSE status END,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(currency,clean(input.transit,80),Math.max(1,Math.min(365,Number(input.validity)||7)),clean(input.incoterm,20),clean(input.remarks,1000),JSON.stringify(price_lines),id).run();return jsonReply({enquiry:normalizeEnquiry(await db.prepare("SELECT * FROM enquiries WHERE id=?").bind(id).first())},200,origin)}
  if((match[2]==="preview"&&request.method==="GET")||(match[2]==="send"&&request.method==="POST")){
   const d=normalizeEnquiry(record),prices=d.price_lines||[];if(!prices.length||!prices.some(x=>x.amount>0))return jsonReply({error:"Add prices before generating an offer"},400,origin);
   const total=prices.reduce((n,x)=>n+Number(x.amount||0),0);const summary=prices.map(x=>x.description+": "+d.currency+" "+Number(x.amount).toFixed(2)).join(" | ");
@@ -60,7 +74,7 @@ async function adminRoute(request,env,origin,url){
  }
  return jsonReply({error:"Method not allowed"},405,origin)
 }
-function normalizeEnquiry(r){return {...r,payload:JSON.parse(r.payload||"{}"),price_lines:JSON.parse(r.price_lines||"[]")}}
+function normalizeEnquiry(r){return {...r,payload:JSON.parse(r.payload||"{}"),price_lines:JSON.parse(r.price_lines||"[]"),cost_lines:JSON.parse(r.cost_lines||"[]"),invoice_lines:JSON.parse(r.invoice_lines||"[]"),shipment_actual:JSON.parse(r.shipment_actual||"{}")}}
 async function saveEnquiries(env,data,company,person,email,phone){
  const db=env.DUVERO_DB;const modes=data.service==="multi"?data.multiModes.filter(x=>["sea","air","road","rail","courier"].includes(x)): [data.service];if(!modes.length)throw Error("No modes");
  const period=new Date().toISOString().slice(0,7),group_id=crypto.randomUUID();const origin=[data.originPostcode,data.originCity,data.originCountry].filter(Boolean).join(" "),destination=[data.destPostcode,data.destCity,data.destCountry].filter(Boolean).join(" ");
