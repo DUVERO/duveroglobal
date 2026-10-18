@@ -51,6 +51,15 @@ async function adminRoute(request,env,origin,url){
  if(url.pathname==="/admin/conversion-factors"&&request.method==="POST"){const x=await request.json(),value=Number(x.value);if(!["air","road","rail","sea"].includes(x.name)||!Number.isFinite(value)||value<=0||value>10000)return jsonReply({error:"Invalid conversion factor"},400,origin);await db.prepare("INSERT INTO calculation_settings(name,value) VALUES(?,?) ON CONFLICT(name) DO UPDATE SET value=excluded.value").bind(x.name,value).run();return jsonReply({ok:true},200,origin)}
  if(url.pathname==="/admin/suppliers"&&request.method==="PUT"){const x=await request.json(),id=Number(x.id),name=clean(x.name,150);if(!Number.isInteger(id)||id<1||!name)return jsonReply({error:"Invalid supplier"},400,origin);await db.prepare("UPDATE suppliers SET name=?,email=?,categories=?,active=? WHERE id=?").bind(name,clean(x.email,250),JSON.stringify(Array.isArray(x.categories)?x.categories:[]),x.active===false?0:1,id).run();return jsonReply({ok:true},200,origin)}
  if(url.pathname==="/admin/charge-definitions"&&request.method==="PUT"){const x=await request.json(),id=Number(x.id),name=clean(x.name,120);if(!Number.isInteger(id)||id<1||!name||!["flat","gross","cw","cbm","rt"].includes(x.basis)||!["Origin","Destination"].includes(x.section))return jsonReply({error:"Invalid charge definition"},400,origin);await db.prepare("UPDATE charge_definitions SET name=?,basis=?,section=?,active=? WHERE id=?").bind(name,x.basis,x.section,x.active===false?0:1,id).run();return jsonReply({ok:true},200,origin)}
+ if(url.pathname==="/admin/customer-companies"&&request.method==="GET"){
+  const companies=await db.prepare("SELECT c.id,c.country,c.registration_number,c.company_name,(SELECT COUNT(*) FROM customer_contacts k WHERE k.company_id=c.id) AS contacts_count FROM customer_companies c ORDER BY c.company_name").all();
+  return jsonReply({items:companies.results||[]},200,origin);
+ }
+ const contactsMatch=url.pathname.match(/^\\/admin\\/customer-companies\\/(\\d+)\\/contacts$/);
+ if(contactsMatch&&request.method==="GET"){
+  const contacts=await db.prepare("SELECT id,email,full_name,phone FROM customer_contacts WHERE company_id=? ORDER BY email").bind(Number(contactsMatch[1])).all();
+  return jsonReply({items:contacts.results||[]},200,origin);
+ }
  if(url.pathname==="/admin/address-book"&&request.method==="GET"){
   const kind=url.searchParams.get("kind");if(!["supplier","customer"].includes(kind))return jsonReply({error:"Invalid address book kind"},400,origin);
   const result=await db.prepare("SELECT * FROM address_book WHERE kind=? ORDER BY company").bind(kind).all();
@@ -138,19 +147,19 @@ if(request.method==="PUT"&&!match[2]){const input=await request.json();const cur
 function normalizeEnquiry(r){return {...r,payload:JSON.parse(r.payload||"{}"),price_lines:JSON.parse(r.price_lines||"[]"),cost_lines:JSON.parse(r.cost_lines||"[]"),invoice_lines:JSON.parse(r.invoice_lines||"[]"),shipment_actual:JSON.parse(r.shipment_actual||"{}"),calculation_data:JSON.parse(r.calculation_data||"{}")}}
 async function saveEnquiries(env,data,company,person,email,phone){
  const db=env.DUVERO_DB;const modes=data.service==="multi"?data.multiModes.filter(x=>["sea","air","road","rail","courier"].includes(x)): [data.service];if(!modes.length)throw Error("No modes");
- // Keep one customer company in the address book, independent of RFQ count.
- // Exact company names are matched case-insensitively by the database unique key.
- // Never overwrite an existing company's address/contact from an unverified enquiry.
- // A country conflict is flagged for manual review rather than merging.
- const customerCountry=clean(data.companyCountry||data.customerCountry||"",80);
- try{
-  const existing=await db.prepare("SELECT id,country,email,contact,phone FROM address_book WHERE kind='customer' AND company=? COLLATE NOCASE").bind(company).first();
-  if(!existing){
-   await db.prepare("INSERT OR IGNORE INTO address_book(kind,company,country,email,contact,phone) VALUES('customer',?,?,?,?,?)").bind(company,customerCountry,email,person,phone).run();
-  }else if(!existing.country||!customerCountry||existing.country.toLocaleLowerCase()===customerCountry.toLocaleLowerCase()){
-   await db.prepare("UPDATE address_book SET email=CASE WHEN email='' THEN ? ELSE email END, contact=CASE WHEN contact='' THEN ? ELSE contact END, phone=CASE WHEN phone='' THEN ? ELSE phone END, country=CASE WHEN country='' THEN ? ELSE country END WHERE id=?").bind(email,person,phone,customerCountry,existing.id).run();
-  }
- }catch(e){console.error("Customer address book sync failed",String(e));}
+ // Registration identity is country + number, not company name or email.
+ const country=clean(data.companyCountry,3).toUpperCase();
+ const regRaw=clean(data.registrationNumber,60).toUpperCase();
+ const registration=regRaw.replace(/[\s-]/g,"");
+ if(!/^[A-Z]{2}$/.test(country)||!registration||registration.length>40||(country==="DK"&&!/^\d{8}$/.test(registration)))throw Error("Invalid company registration");
+ // Register one company and many contacts; never grant customers access to old RFQs.
+ await db.prepare("INSERT OR IGNORE INTO customer_companies(country,registration_number,company_name) VALUES(?,?,?)").bind(country,registration,company).run();
+ const identity=await db.prepare("SELECT id FROM customer_companies WHERE country=? AND registration_number=?").bind(country,registration).first();
+ if(!identity)throw Error("Customer identity could not be created");
+ await db.prepare("INSERT OR IGNORE INTO customer_contacts(company_id,email,full_name,phone) VALUES(?,?,?,?)").bind(identity.id,email,person,phone).run();
+ // Address book is a convenience index; identity and contacts remain authoritative.
+ const existing=await db.prepare("SELECT id,country FROM address_book WHERE kind='customer' AND company=? COLLATE NOCASE").bind(company).first();
+ if(!existing)await db.prepare("INSERT OR IGNORE INTO address_book(kind,company,country,email,contact,phone) VALUES('customer',?,?,?,?,?)").bind(company,country,email,person,phone).run();
  const period=new Date().toISOString().slice(0,7),group_id=crypto.randomUUID();const origin=[data.originPostcode,data.originCity,data.originCountry].filter(Boolean).join(" "),destination=[data.destPostcode,data.destCity,data.destCountry].filter(Boolean).join(" ");
  const statements=[db.prepare("INSERT INTO quote_counters(period,last_number) VALUES (?,0) ON CONFLICT(period) DO NOTHING").bind(period)];
  for(let i=0;i<modes.length;i++)statements.push(db.prepare("UPDATE quote_counters SET last_number=last_number+1 WHERE period=?").bind(period));
@@ -195,6 +204,8 @@ export default {async fetch(request,env){
  const email=clean(data.email,254),person=clean(data.person,120),company=clean(data.company,150),phone=clean(data.phone,80);
  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||!person||!company||!phone)return reply({error:"Missing or invalid contact details"},400,origin);
  if(!Array.isArray(data.cargo)||!data.cargo.length||data.cargo.length>30)return reply({error:"Invalid cargo"},400,origin);
+ const registration=String(data.registrationNumber||"").toUpperCase().replace(/[\\s-]/g,""),companyCountry=String(data.companyCountry||"").toUpperCase();
+ if(!/^[A-Z]{2}$/.test(companyCountry)||!registration||registration.length>40||(companyCountry==="DK"&&!/^\\d{8}$/.test(registration)))return reply({error:"Valid company registration number and country required"},400,origin);
  const attachments=Array.isArray(data.attachments)?data.attachments:[];
  if(attachments.length>3||attachments.some(a=>!a||typeof a.filename!=="string"||!/\.(pdf|jpe?g|png|docx?|xlsx?)$/i.test(a.filename)||typeof a.content!=="string"||a.content.length>2800000||!/^[A-Za-z0-9+/]+={0,2}$/.test(a.content)))return reply({error:"Invalid attachment"},400,origin);
  const lines=[
