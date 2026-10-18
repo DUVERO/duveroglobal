@@ -37,5 +37,5 @@ function fill(doc,record){
  return doc;
 }
 async function render(record){if(!record?.quote_number)throw Error("RFQ number missing");const resp=await fetch("/admin/quotation-pdf-template.html",{cache:"no-store"});if(!resp.ok)throw Error("Approved quotation template unavailable");const html=await resp.text();const doc=new DOMParser().parseFromString(html,"text/html");fill(doc,record);return "<!doctype html>\\n"+doc.documentElement.outerHTML}
-window.DUVEROQuotationRenderer={render};
+window.DUVEROQuotationRenderer={render,fill};
 })();
