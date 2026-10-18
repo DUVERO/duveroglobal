@@ -47,7 +47,7 @@ async function adminRoute(request,env,origin,url){
  const id=Number(match[1]);const record=await db.prepare("SELECT * FROM enquiries WHERE id=?").bind(id).first();if(!record)return jsonReply({error:"Enquiry not found"},404,origin);
  if(request.method==="PUT"&&match[2]==="tracking"){
  const input=await request.json();
- const allowed=["New","Draft","Quoted","Accepted","Declined","Closed"];
+ const allowed=["New","Draft","Quoted","Revised draft","Accepted","Declined","Closed"];
  const status=allowed.includes(input.status)?input.status:record.status;
  const followup=String(input.followup_date||"");
  if(followup&&!/^\\d{4}-\\d{2}-\\d{2}$/.test(followup))return jsonReply({error:"Invalid follow-up date"},400,origin);
