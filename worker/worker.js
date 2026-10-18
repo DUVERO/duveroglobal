@@ -49,8 +49,27 @@ async function adminRoute(request,env,origin,url){
  if(url.pathname==="/admin/suppliers"&&request.method==="POST"){const x=await request.json(),name=clean(x.name,150);if(!name)return jsonReply({error:"Supplier name required"},400,origin);await db.prepare("INSERT INTO suppliers(name,email,categories) VALUES(?,?,?)").bind(name,clean(x.email,250),JSON.stringify(Array.isArray(x.categories)?x.categories:[])).run();return jsonReply({ok:true},201,origin)}
  if(url.pathname==="/admin/charge-definitions"&&request.method==="POST"){const x=await request.json(),name=clean(x.name,120);if(!name||!["flat","gross","cw","cbm","rt"].includes(x.basis)||!["Origin","Destination"].includes(x.section))return jsonReply({error:"Invalid charge line"},400,origin);await db.prepare("INSERT INTO charge_definitions(name,basis,section) VALUES(?,?,?)").bind(name,x.basis,x.section).run();return jsonReply({ok:true},201,origin)}
  if(url.pathname==="/admin/conversion-factors"&&request.method==="POST"){const x=await request.json(),value=Number(x.value);if(!["air","road","rail","sea"].includes(x.name)||!Number.isFinite(value)||value<=0||value>10000)return jsonReply({error:"Invalid conversion factor"},400,origin);await db.prepare("INSERT INTO calculation_settings(name,value) VALUES(?,?) ON CONFLICT(name) DO UPDATE SET value=excluded.value").bind(x.name,value).run();return jsonReply({ok:true},200,origin)}
- const match=url.pathname.match(/^\/admin\/enquiries\/(\d+)(?:\/(preview|send|finance|tracking|emails))?$/);if(!match)return jsonReply({error:"Not found"},404,origin);
+ const match=url.pathname.match(/^\/admin\/enquiries\/(\d+)(?:\/(preview|send|finance|tracking|emails|calculation))?$/);if(!match)return jsonReply({error:"Not found"},404,origin);
  const id=Number(match[1]);const record=await db.prepare("SELECT * FROM enquiries WHERE id=?").bind(id).first();if(!record)return jsonReply({error:"Enquiry not found"},404,origin);
+ if(match[2]==="calculation"&&request.method==="PUT"){
+  if(record.status==="Quoted")return jsonReply({error:"Quotation already sent. Create a revised draft first."},409,origin);
+  const input=await request.json(),service=String(record.service||"air").toLowerCase();
+  const gross=Number(input.grossKg),cbm=Number(input.cbm),manual=input.manualCW===""||input.manualCW==null?null:Number(input.manualCW);
+  if(!Number.isFinite(gross)||gross<0||!Number.isFinite(cbm)||cbm<0||(manual!==null&&(!Number.isFinite(manual)||manual<0)))return jsonReply({error:"Invalid cargo weight"},400,origin);
+  const factors=await db.prepare("SELECT name,value FROM calculation_settings").all();
+  const factor=Number((factors.results||[]).find(x=>x.name===service)?.value)||166.6666667;
+  const automaticCW=Math.max(gross,cbm*factor),cw=manual===null?automaticCW:manual,rt=Math.max(cbm,gross/1000);
+  const items=Array.isArray(input.lines)?input.lines.slice(0,30):[];
+  const calculated=[];
+  for(const item of items){const name=clean(item.description,120),basis=item.basis,section=item.section,netRate=Number(item.netRate),saleRate=Number(item.saleRate);
+   if(!name||!["flat","gross","cw","cbm","rt"].includes(basis)||!["Origin","Destination"].includes(section)||!Number.isFinite(netRate)||!Number.isFinite(saleRate)||netRate<0||saleRate<0||netRate>1e8||saleRate>1e8)return jsonReply({error:"Invalid charge line"},400,origin);
+   const qty={flat:1,gross,cw,cbm,rt}[basis];calculated.push({description:name,basis,section,supplier:clean(item.supplier,150),netRate,saleRate,quantity:qty,netTotal:Math.round(netRate*qty*100)/100,saleTotal:Math.round(saleRate*qty*100)/100});
+  }
+  const prices=calculated.map(x=>({description:x.description,amount:x.saleTotal})),costs=calculated.map(x=>({description:x.description,amount:x.netTotal,supplier:x.supplier}));
+  const calculation={grossKg:gross,cbm,automaticCW,manualCW:manual,chargeableKg:cw,lines:calculated};
+  await db.prepare("UPDATE enquiries SET calculation_data=?,price_lines=?,cost_lines=?,status=CASE WHEN status='New' THEN 'Draft' ELSE status END,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(JSON.stringify(calculation),JSON.stringify(prices),JSON.stringify(costs),id).run();
+  return jsonReply({enquiry:normalizeEnquiry(await db.prepare("SELECT * FROM enquiries WHERE id=?").bind(id).first())},200,origin);
+ }
  if(match[2]==="emails"&&request.method==="GET"){const result=await db.prepare("SELECT id,sender,recipient,subject,body,email_date,created_at FROM enquiry_emails WHERE enquiry_id=? ORDER BY id DESC LIMIT 100").bind(id).all();return jsonReply({emails:result.results||[]},200,origin)}
  if(match[2]==="emails"&&request.method==="POST"){const input=await request.json();const subject=clean(input.subject,300),body=clean(input.body,20000),sender=clean(input.sender,250),recipient=clean(input.recipient,250),emailDate=clean(input.email_date,40);if(!body.trim())return jsonReply({error:"Email text is required"},400,origin);await db.prepare("INSERT INTO enquiry_emails(enquiry_id,sender,recipient,subject,body,email_date) VALUES(?,?,?,?,?,?)").bind(id,sender,recipient,subject,body,emailDate).run();return jsonReply({ok:true},201,origin)}
  if(request.method==="PUT"&&match[2]==="tracking"){
@@ -93,7 +112,7 @@ if(request.method==="PUT"&&!match[2]){const input=await request.json();const cur
  }
  return jsonReply({error:"Method not allowed"},405,origin)
 }
-function normalizeEnquiry(r){return {...r,payload:JSON.parse(r.payload||"{}"),price_lines:JSON.parse(r.price_lines||"[]"),cost_lines:JSON.parse(r.cost_lines||"[]"),invoice_lines:JSON.parse(r.invoice_lines||"[]"),shipment_actual:JSON.parse(r.shipment_actual||"{}")}}
+function normalizeEnquiry(r){return {...r,payload:JSON.parse(r.payload||"{}"),price_lines:JSON.parse(r.price_lines||"[]"),cost_lines:JSON.parse(r.cost_lines||"[]"),invoice_lines:JSON.parse(r.invoice_lines||"[]"),shipment_actual:JSON.parse(r.shipment_actual||"{}"),calculation_data:JSON.parse(r.calculation_data||"{}")}}
 async function saveEnquiries(env,data,company,person,email,phone){
  const db=env.DUVERO_DB;const modes=data.service==="multi"?data.multiModes.filter(x=>["sea","air","road","rail","courier"].includes(x)): [data.service];if(!modes.length)throw Error("No modes");
  const period=new Date().toISOString().slice(0,7),group_id=crypto.randomUUID();const origin=[data.originPostcode,data.originCity,data.originCountry].filter(Boolean).join(" "),destination=[data.destPostcode,data.destCity,data.destCountry].filter(Boolean).join(" ");
