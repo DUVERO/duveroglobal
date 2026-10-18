@@ -138,6 +138,19 @@ if(request.method==="PUT"&&!match[2]){const input=await request.json();const cur
 function normalizeEnquiry(r){return {...r,payload:JSON.parse(r.payload||"{}"),price_lines:JSON.parse(r.price_lines||"[]"),cost_lines:JSON.parse(r.cost_lines||"[]"),invoice_lines:JSON.parse(r.invoice_lines||"[]"),shipment_actual:JSON.parse(r.shipment_actual||"{}"),calculation_data:JSON.parse(r.calculation_data||"{}")}}
 async function saveEnquiries(env,data,company,person,email,phone){
  const db=env.DUVERO_DB;const modes=data.service==="multi"?data.multiModes.filter(x=>["sea","air","road","rail","courier"].includes(x)): [data.service];if(!modes.length)throw Error("No modes");
+ // Keep one customer company in the address book, independent of RFQ count.
+ // Exact company names are matched case-insensitively by the database unique key.
+ // Never overwrite an existing company's address/contact from an unverified enquiry.
+ // A country conflict is flagged for manual review rather than merging.
+ const customerCountry=clean(data.companyCountry||data.customerCountry||"",80);
+ try{
+  const existing=await db.prepare("SELECT id,country,email,contact,phone FROM address_book WHERE kind='customer' AND company=? COLLATE NOCASE").bind(company).first();
+  if(!existing){
+   await db.prepare("INSERT OR IGNORE INTO address_book(kind,company,country,email,contact,phone) VALUES('customer',?,?,?,?,?)").bind(company,customerCountry,email,person,phone).run();
+  }else if(!existing.country||!customerCountry||existing.country.toLocaleLowerCase()===customerCountry.toLocaleLowerCase()){
+   await db.prepare("UPDATE address_book SET email=CASE WHEN email='' THEN ? ELSE email END, contact=CASE WHEN contact='' THEN ? ELSE contact END, phone=CASE WHEN phone='' THEN ? ELSE phone END, country=CASE WHEN country='' THEN ? ELSE country END WHERE id=?").bind(email,person,phone,customerCountry,existing.id).run();
+  }
+ }catch(e){console.error("Customer address book sync failed",String(e));}
  const period=new Date().toISOString().slice(0,7),group_id=crypto.randomUUID();const origin=[data.originPostcode,data.originCity,data.originCountry].filter(Boolean).join(" "),destination=[data.destPostcode,data.destCity,data.destCountry].filter(Boolean).join(" ");
  const statements=[db.prepare("INSERT INTO quote_counters(period,last_number) VALUES (?,0) ON CONFLICT(period) DO NOTHING").bind(period)];
  for(let i=0;i<modes.length;i++)statements.push(db.prepare("UPDATE quote_counters SET last_number=last_number+1 WHERE period=?").bind(period));
