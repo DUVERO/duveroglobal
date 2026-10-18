@@ -49,7 +49,7 @@ const oldOpen=open;
 open=function(x){oldOpen(x);calcService=String(x.service||"air").toLowerCase();const d=x.payload||{},cargo=calcCargo(d),saved=x.calculation_data||{};
  $("calcGross").value=saved.grossKg??cargo.gross;$("calcCbm").value=saved.cbm??cargo.cbm;$("calcManual").value=saved.manualCW??"";
  calcItems=Array.isArray(saved.lines)&&saved.lines.length?saved.lines.map(y=>({...y,netRate:y.netRate??0,saleRate:y.saleRate??0})):Array.isArray(x.price_lines)&&x.price_lines.length?x.price_lines.map((y,i)=>({description:y.description,basis:"flat",section:"Origin",netRate:x.cost_lines?.[i]?.amount||0,saleRate:y.amount||0,supplier:x.cost_lines?.[i]?.supplier||""})):calcDefs.filter(z=>z.active!==0).map(z=>({definition:z.id,description:z.name,basis:z.basis,section:z.section,supplier:"",netRate:"",saleRate:""}));
- calcDraw();calcLoadMasters().then(calcDraw).catch(e=>message("Calculator setup unavailable: "+e.message));
+ calcDraw();calcLoadMasters().then(()=>{if(!calcItems.length)calcItems=calcDefs.filter(z=>z.active!==0).map(z=>({definition:z.id,description:z.name,basis:z.basis,section:z.section,supplier:"",netRate:"",saleRate:""}));calcDraw()}).catch(e=>message("Calculator setup unavailable: "+e.message));
  $("details").insertAdjacentHTML("beforeend",'<details><summary>Full RFQ details</summary><pre style="white-space:pre-wrap;overflow-wrap:anywhere">'+esc(JSON.stringify(d,null,2))+'</pre></details>');
 };
 $("calcSave").onclick=async()=>{
@@ -68,11 +68,11 @@ function calcShowSetup(kind){
  const items=$("setupItems"),form=$("setupForm");items.textContent="Loading...";
  calcLoadMasters().then(()=>{
  if(kind==="suppliers"){
-  items.innerHTML=calcSuppliers.map(x=>'<div class="item"><strong>'+esc(x.name)+'</strong> · '+esc(x.email||"")+' · '+esc((x.categories||[]).join(", "))+'</div>').join("")||"No suppliers";
+  items.innerHTML=calcSuppliers.map(x=>'<div class="item" data-edit-supplier="'+x.id+'"><strong>'+esc(x.name)+'</strong> · '+esc(x.email||"")+' · '+esc((x.categories||[]).join(", "))+'</div>').join("")||"No suppliers";
   form.innerHTML='<h3>Add supplier</h3><label>Name</label><input id="newSupplierName"><label>Email (optional)</label><input id="newSupplierEmail"><label>Service categories (comma separated)</label><input id="newSupplierCategories" placeholder="Air freight, THC, Delivery"><div class="actions"><button id="createSupplier">Save supplier</button></div>';
   $("createSupplier").onclick=()=>calcCreate(kind,{name:$("newSupplierName").value,email:$("newSupplierEmail").value,categories:$("newSupplierCategories").value.split(",").map(x=>x.trim()).filter(Boolean)});
  }else if(kind==="charges"){
-  items.innerHTML=calcDefs.map(x=>'<div class="item"><strong>'+esc(x.name)+'</strong> · '+esc(x.section)+' · '+esc(calcBasis[x.basis]||x.basis)+'</div>').join("")||"No charge lines";
+  items.innerHTML=calcDefs.map(x=>'<div class="item" data-edit-charge="'+x.id+'"><strong>'+esc(x.name)+'</strong> · '+esc(x.section)+' · '+esc(calcBasis[x.basis]||x.basis)+'</div>').join("")||"No charge lines";
   form.innerHTML='<h3>Add charge line</h3><label>Name</label><input id="newChargeName"><label>Section</label><select id="newChargeSection"><option>Origin</option><option>Destination</option></select><label>Calculation basis</label><select id="newChargeBasis">'+Object.entries(calcBasis).map(([k,v])=>calcOption(k,v,"flat")).join("")+'</select><div class="actions"><button id="createCharge">Save charge line</button></div>';
   $("createCharge").onclick=()=>calcCreate(kind,{name:$("newChargeName").value,section:$("newChargeSection").value,basis:$("newChargeBasis").value});
  }else{
@@ -88,3 +88,15 @@ $("viewSuppliers").onclick=()=>calcShowSetup("suppliers");
 $("viewCharges").onclick=()=>calcShowSetup("charges");
 $("viewFactors").onclick=()=>calcShowSetup("factors");
 $("setupBack").onclick=()=>{$("setupPanel").classList.add("hidden");$("list").classList.remove("hidden")};
+
+const calcOriginalQuotes=$("viewQuotes").onclick,calcOriginalCustomers=$("viewCustomers").onclick,calcOriginalArchive=$("viewArchive").onclick;
+$("viewQuotes").onclick=()=>{$("setupPanel").classList.add("hidden");calcOriginalQuotes()};
+$("viewCustomers").onclick=()=>{$("setupPanel").classList.add("hidden");calcOriginalCustomers()};
+$("viewArchive").onclick=()=>{$("setupPanel").classList.add("hidden");calcOriginalArchive()};
+$("setupItems").addEventListener("click",e=>{
+ const id=e.target.closest("[data-edit-supplier]")?.dataset.editSupplier;
+ if(id){const x=calcSuppliers.find(s=>String(s.id)===id);if(!x)return;$("newSupplierName").value=x.name;$("newSupplierEmail").value=x.email||"";$("newSupplierCategories").value=(x.categories||[]).join(", ");$("createSupplier").textContent="Update supplier";$("createSupplier").onclick=()=>calcUpdate("suppliers",{id:x.id,name:$("newSupplierName").value,email:$("newSupplierEmail").value,categories:$("newSupplierCategories").value.split(",").map(s=>s.trim()).filter(Boolean),active:true});}
+ const cid=e.target.closest("[data-edit-charge]")?.dataset.editCharge;
+ if(cid){const x=calcDefs.find(s=>String(s.id)===cid);if(!x)return;$("newChargeName").value=x.name;$("newChargeSection").value=x.section;$("newChargeBasis").value=x.basis;$("createCharge").textContent="Update charge line";$("createCharge").onclick=()=>calcUpdate("charges",{id:x.id,name:$("newChargeName").value,section:$("newChargeSection").value,basis:$("newChargeBasis").value,active:true});}
+});
+async function calcUpdate(kind,data){try{await api("/admin/"+(kind==="suppliers"?"suppliers":"charge-definitions"),{method:"PUT",body:JSON.stringify(data)});calcShowSetup(kind);message("Updated")}catch(e){message("Update failed: "+e.message)}}
