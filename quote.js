@@ -125,7 +125,8 @@ document.getElementById("next").addEventListener("click",async()=>{
  try{
   const attachments=state.danger==="yes"?await Promise.all(dgFiles.map(async f=>({filename:f.name,content:await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(",")[1]);reader.onerror=reject;reader.readAsDataURL(f)})}))):[];
   const response=await fetch(QUOTE_API,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({...state,attachments,turnstileToken:token,website:""})});
-  if(!response.ok)throw Error("Submission failed");\n  saveRememberedDetails();
+  if(!response.ok)throw Error("Submission failed");
+  saveRememberedDetails();
   finished=true;sendError="";
  }catch{
   sendError=lang==="da"?"Kunne ikke sende. Prøv igen.":"Could not send. Please try again.";
