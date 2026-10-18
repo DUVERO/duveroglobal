@@ -6,7 +6,7 @@ const money=n=>Number(n||0).toLocaleString("en-GB",{minimumFractionDigits:2,maxi
 async function api(path,opts={}){const r=await fetch(API+path,{...opts,headers:{"Content-Type":"application/json",...(sessionToken?{"Authorization":"Bearer "+sessionToken}:{}),...(opts.headers||{})}});if(!r.ok)throw Error((await r.json().catch(()=>({}))).error||"Request failed ("+r.status+")");return r.json()}
 function message(s){$("status").textContent=s}
 const personalDomains=new Set(["gmail.com","googlemail.com","hotmail.com","hotmail.dk","outlook.com","outlook.dk","live.com","live.dk","msn.com","yahoo.com","icloud.com","me.com","mail.com","aol.com","proton.me","protonmail.com"]);
-function customerName(x){const domain=String(x.email||"").toLowerCase().split("@")[1]||"";if(!domain)return "Unknown customer";if(personalDomains.has(domain))return "Kontantkunder";return domain.replace(/\\.[^.]+$/,"")}
+function customerName(x){const domain=String(x.email||"").toLowerCase().split("@")[1]||"";if(!domain)return "Unknown customer";if(personalDomains.has(domain))return "Kontantkunder";return domain.replace(/\.[^.]+$/,"")}
 let adminView="quotes";
 function renderEnquiries(){
  const q=$("searchEnquiries").value.trim().toLocaleLowerCase(),status=$("statusFilter").value,archive=$("archiveFilter").value;
