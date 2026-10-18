@@ -112,7 +112,7 @@ function calcSetNav(view){
  const names={quotes:"Enquiries",customers:"Customers",archive:"Archive",suppliers:"Suppliers",charges:"Charge Lines",factors:"Conversion Factors"};
  const title=names[view]||"Enquiries";
  const h=document.querySelector("main h1");if(h)h.textContent=title;
- const subtitle=document.querySelector("main .bar .muted");if(subtitle)subtitle.textContent=({quotes:"Active freight enquiries and quotations",customers:"Customers grouped by company, with their RFQs",archive:"Archived enquiries only",suppliers:"Manage suppliers",charges:"Manage predefined charge lines",factors:"Configure volumetric weight factors"})[view]||"";
+ const subtitle=document.querySelector("main > .bar .muted");if(subtitle)subtitle.textContent=({quotes:"Active freight enquiries and quotations",customers:"Customers grouped by company, with their RFQs",archive:"Archived enquiries only",suppliers:"Manage suppliers",charges:"Manage predefined charge lines",factors:"Configure volumetric weight factors"})[view]||"";
  const listTitle=document.querySelector("#list h2");if(listTitle)listTitle.textContent=title;
  for(const [key,id] of Object.entries({quotes:"topQuotes",customers:"topCustomers",archive:"topArchive",suppliers:"topSuppliers",charges:"topCharges",factors:"topFactors"})){
   const el=$(id);if(el){el.setAttribute("aria-current",key===view?"page":"false");el.style.outline=key===view?"2px solid #55d6cf":""}
@@ -123,6 +123,6 @@ function calcSetNav(view){
  if(isArchive&&!records.some(x=>Number(x.archived)===1))$("enquiries").textContent="No archived enquiries yet. Archive an RFQ to see it here.";
 }
 for(const [id,view] of [["topQuotes","quotes"],["topCustomers","customers"],["topArchive","archive"],["topSuppliers","suppliers"],["topCharges","charges"],["topFactors","factors"]]){
- $(id).addEventListener("click",()=>calcSetNav(view));
+ $(id).onclick=()=>{calcGoTop(({quotes:"viewQuotes",customers:"viewCustomers",archive:"viewArchive",suppliers:"viewSuppliers",charges:"viewCharges",factors:"viewFactors"})[view]);calcSetNav(view)};
 }
 calcSetNav("quotes");
