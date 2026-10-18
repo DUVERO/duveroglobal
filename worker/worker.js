@@ -4,6 +4,48 @@
 // The public website remains in test mode until explicitly enabled.
 
 function makeQuotePdf(d,company,person,email,phone,reference="",offerDetails=null){
+ if(offerDetails)return makeLegacyQuotePdf(d,company,person,email,phone,reference,offerDetails);
+ const encoder=new TextEncoder(),objs=[],pages=[];let cmds=[],y=0;
+ const add=v=>(objs.push(v),objs.length);
+ const reg=add("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"),bold=add("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>");
+ const esc=v=>String(v??"-").replace(/[^\x20-\x7e]/g," ").replace(/\\/g,"\\\\").replace(/\(/g,"\\(").replace(/\)/g,"\\)").slice(0,150);
+ const fill=(x,b,w,h,r=.94,g=.97,bl=.98)=>cmds.push(r+" "+g+" "+bl+" rg "+x+" "+b+" "+w+" "+h+" re f");
+ const text=(v,x,b,size=9,strong=false)=>cmds.push("0.04 0.18 0.27 rg BT /"+(strong?"B":"R")+" "+size+" Tf 1 0 0 1 "+x+" "+b+" Tm ("+esc(v)+") Tj ET");
+ const page=()=>{if(cmds.length)pages.push(cmds.join("\n"));cmds=[];fill(0,0,595,842,1,1,1);text("DUVERO",28,788,30,true);text("GLOBAL FREIGHT & LOGISTICS",29,769,8);text("Freight Enquiry",305,795,21,true);text("Quote Request from DUVERO Website",305,777,9);fill(425,714,145,47);text("Enquiry No.",434,742,9);text(reference,434,727,12,true);fill(28,756,542,3,0,.66,.65);y=698};
+ const room=h=>{if(y-h<50)page()};
+ const section=name=>{room(45);fill(28,y-24,542,31);text(name,41,y-13,12,true);y-=42};
+ const row=(key,val,x=42,w=500)=>{if(val===undefined||val===null||val==="")return;room(23);text(key,x,y-10,9);text(String(val).slice(0,Math.floor((w-108)/5.1)),x+108,y-10,9,true);y-=23};
+ const pair=(name,items,x,top,w=259)=>{fill(x,top-24,w,31);text(name,x+10,top-13,12,true);let yy=top-45;for(const [k,v] of items){text(k,x+10,yy,8);text(String(v||"-").slice(0,27),x+91,yy,9,true);yy-=25}return yy};
+ const fmt=n=>Number(n||0).toLocaleString("en-US",{maximumFractionDigits:3});
+ const services={air:"Air Freight",sea:"Sea Freight",road:"Road Transport",rail:"Rail Freight",courier:"Courier / Express",multi:"Compare Freight"};
+ page();section("Shipment Overview");
+ const summary=[["Service",services[d.service]||d.service],["Direction",d.direction],["Incoterms",d.incoterm],["Transport type",d.service==="air"?"Air cargo":d.scope||d.roadType||"General cargo"]];
+ for(let i=0;i<4;i++){let x=28+i*135.5;fill(x,y-51,135,62,.98,.99,1);text(summary[i][0],x+9,y-13,9);text(summary[i][1],x+9,y-34,11,true)}y-=77;
+ room(190);let top=y;
+ const loc=p=>[["Country",d[p+"CountryOther"]||d[p+"Country"]],["City",d[p+"City"]],["Postal code",d[p+"Postcode"]],["Address",d[p+"Address"]],["Party",d[p+"Party"]]];
+ pair("Origin",loc("origin"),28,top);pair("Destination",loc("dest"),311,top);y-=195;
+ section("Goods Details");
+ if(d.noDimensions&&!(["sea","rail"].includes(d.service)&&d.scope==="fcl")){row("Cargo","Only kg / CBM");row("Total pieces",d.totalPieces);row("Total weight",fmt(d.totalWeight)+" kg");row("Total volume",fmt(d.totalCbm)+" m3")}
+ else{
+ const cargo=Array.isArray(d.cargo)?d.cargo:[],xs=[29,53,109,209,329,366,439,519],headers=["#","Type","Description","Dimensions (cm)","Qty","Weight kg","CBM","Stack"];let qty=0,weight=0,cbm=0;
+ const head=()=>{room(35);fill(28,y-22,542,29);headers.forEach((v,i)=>text(v,xs[i],y-12,i===3?7:8,true));y-=30};head();
+ for(let i=0;i<cargo.length;i++){if(y<91){page();section("Goods Details (continued)");head()}const c=cargo[i],n=Number(c.qty)||0,w=n*(Number(c.weight)||0),v=n*(Number(c.length)||0)*(Number(c.width)||0)*(Number(c.height)||0)/1e6;qty+=n;weight+=w;cbm+=v;
+ fill(28,y-22,542,27,i%2?.96:1,i%2?.98:1,1);
+ const vals=[i+1,c.type||c.size||"-",d.commodity||"-",[c.length,c.width,c.height].every(Boolean)?[c.length,c.width,c.height].join(" x "):"-",n,fmt(w),fmt(v),c.stack||"-"];vals.forEach((val,j)=>text(String(val).slice(0,j===2?17:j===3?21:12),xs[j],y-13,j===3?7:8));y-=27}
+ room(38);fill(28,y-28,542,34);text("TOTAL",294,y-15,10,true);text(fmt(qty),xs[4],y-15,9,true);text(fmt(weight)+" kg",xs[5],y-15,9,true);text(fmt(cbm)+" m3",xs[6],y-15,9,true);y-=44;
+ }
+ room(245);top=y;
+ const additional=[["Ready date",d.ready],["Dangerous goods",d.danger],["UN number",d.un],["Tail lift",d.tailLift?"Required":"No"],["Remarks",d.details]];
+ const customer=[["Company",company],["Registration",[d.companyCountry,d.registrationNumber].filter(Boolean).join(" ")],["Address",d.companyAddress],["Postal / city",[d.companyPostcode,d.companyCity].filter(Boolean).join(" ")],["Country",d.companyCountry],["Name",person],["Email",email],["Phone",phone]];
+ const left=pair("Additional Information",additional,28,top),right=pair("Customer Details",customer,311,top);y=Math.min(left,right)-17;
+ room(96);fill(28,y-74,542,83,.91,.98,.96);text("Notes",41,y-12,12,true);text("This is a quote request submitted through the DUVERO website.",41,y-36,10);text("Please provide your best all-in rate and estimated transit time.",41,y-54,10);pages.push(cmds.join("\n"));
+ const refs=[];for(const content of pages){const stream=add("<< /Length "+encoder.encode(content).length+" >>\nstream\n"+content+"\nendstream");refs.push(add("<< /Type /Page /Parent PARENT /MediaBox [0 0 595 842] /Resources << /Font << /R "+reg+" 0 R /B "+bold+" 0 R >> >> /Contents "+stream+" 0 R >>"))}
+ const parent=add("<< /Type /Pages /Kids ["+refs.map(n=>n+" 0 R").join(" ")+"] /Count "+refs.length+" >>");for(const n of refs)objs[n-1]=objs[n-1].replace("PARENT",parent+" 0 R");const catalog=add("<< /Type /Catalog /Pages "+parent+" 0 R >>");
+ let pdf="%PDF-1.4\n",offsets=[0];for(let i=0;i<objs.length;i++){offsets.push(encoder.encode(pdf).length);pdf+=(i+1)+" 0 obj\n"+objs[i]+"\nendobj\n"}const xref=encoder.encode(pdf).length;pdf+="xref\n0 "+(objs.length+1)+"\n0000000000 65535 f \n"+offsets.slice(1).map(n=>String(n).padStart(10,"0")+" 00000 n \n").join("")+"trailer\n<< /Size "+(objs.length+1)+" /Root "+catalog+" 0 R >>\nstartxref\n"+xref+"\n%%EOF";
+ const bytes=encoder.encode(pdf);let binary="";for(let i=0;i<bytes.length;i+=8192)binary+=String.fromCharCode(...bytes.subarray(i,i+8192));return btoa(binary);
+}
+
+function makeLegacyQuotePdf(d,company,person,email,phone,reference="",offerDetails=null){
  const cleanPdf=v=>String(v??"").replace(/[^\x20-\x7e]/g," ").replace(/\\/g,"\\\\").replace(/\(/g,"\\(").replace(/\)/g,"\\)").slice(0,110);
  const labels={sea:"Sea Freight - LCL",air:"Air Freight",road:"Road Freight - LTL",rail:"Rail Freight - LCL",courier:"Courier / Express"};
  const pages=[];let cmds=[],y=700;
