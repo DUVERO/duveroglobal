@@ -17,7 +17,7 @@ function abRender(){
  host.innerHTML='<div class="bar"><h3>Company address book</h3><span class="muted">'+filtered.length+' companies</span></div><label>Search company, city, email or phone</label><input id="abSearch" type="search" placeholder="Find a company..." value="'+esc(abFilter)+'"><div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;margin-top:14px;text-align:left"><thead><tr><th>Company</th><th>City / Country</th><th>Contact</th><th>Phone</th><th></th></tr></thead><tbody>'+filtered.map((x,i)=>'<tr style="border-top:1px solid #dbe6e9"><td style="padding:12px 5px"><strong>'+esc(x.company)+'</strong></td><td>'+esc([x.city,x.country].filter(Boolean).join(", "))+'</td><td>'+esc(x.contact||x.email||"")+'</td><td>'+esc(x.phone||"")+'</td><td><button type="button" class="secondary" data-ab-open="'+i+'">Open</button></td></tr>').join("")+'</tbody></table></div><div class="actions"><button type="button" id="abNew">+ Add company</button></div><div id="abEditor"></div>';
  $("abSearch").oninput=e=>{abFilter=e.target.value;abRender();$("abSearch").focus();$("abSearch").setSelectionRange(abFilter.length,abFilter.length)};
  host.querySelectorAll("[data-ab-open]").forEach(b=>b.onclick=()=>abEdit(filtered[Number(b.dataset.abOpen)]));
- $("abNew").onclick=()=>abEdit(null);
+ host.querySelector("#abNew").addEventListener("click",e=>{e.preventDefault();abEdit(null)});
 }
 function abEdit(item){
  abCurrent=item;
@@ -25,7 +25,7 @@ function abEdit(item){
  el.innerHTML='<section class="panel" style="background:#f8fbfb"><div class="bar"><h3>'+(item?"Company details":"Add company")+'</h3><button type="button" class="secondary" id="abCancel">Close</button></div><div class="grid">'+abFields.map(([k,l])=>abField(k,l,v[k]||"")).join("")+'</div><p class="muted">One company record, regardless of branch or shipping origin.</p><button type="button" id="abSave">Save company details</button></section>';
  $("abCancel").onclick=()=>{el.innerHTML=""};
  $("abSave").onclick=abSave;
- el.scrollIntoView({behavior:"smooth",block:"nearest"});
+ el.scrollIntoView({behavior:"auto",block:"start"});
 }
 async function abSave(){
  const x={kind:abKind};for(const field of abFields)x[field[0]]=$("abEditor").querySelector('[data-ab="'+field[0]+'"]').value.trim();
@@ -53,9 +53,9 @@ async function abOpen(kind){
 }
 function abExitCustomer(){
  $("customerAddressBook").classList.add("hidden");$("enquiries").classList.remove("hidden");
- $("list").querySelector(".grid").classList.remove("hidden");
+ $("list").querySelector(".grid")?.classList.remove("hidden");
  $("searchEnquiries").classList.remove("hidden");
- $("list").querySelector('label[for="searchEnquiries"]').classList.remove("hidden");
+ $("list").querySelector('label[for="searchEnquiries"]')?.classList.remove("hidden");
 }
 $("topCustomers").addEventListener("click",()=>abOpen("customer"));
 $("topSuppliers").addEventListener("click",()=>abOpen("supplier"));
