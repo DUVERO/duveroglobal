@@ -55,7 +55,7 @@ async function adminRoute(request,env,origin,url){
   const companies=await db.prepare("SELECT c.id,c.country,c.registration_number,c.company_name,(SELECT COUNT(*) FROM customer_contacts k WHERE k.company_id=c.id) AS contacts_count FROM customer_companies c ORDER BY c.company_name").all();
   return jsonReply({items:companies.results||[]},200,origin);
  }
- const contactsMatch=url.pathname.match(/^\\/admin\\/customer-companies\\/(\\d+)\\/contacts$/);
+ const contactsMatch=url.pathname.match(/^\/admin\/customer-companies\/(\d+)\/contacts$/);
  if(contactsMatch&&request.method==="GET"){
   const contacts=await db.prepare("SELECT id,email,full_name,phone FROM customer_contacts WHERE company_id=? ORDER BY email").bind(Number(contactsMatch[1])).all();
   return jsonReply({items:contacts.results||[]},200,origin);
@@ -204,8 +204,8 @@ export default {async fetch(request,env){
  const email=clean(data.email,254),person=clean(data.person,120),company=clean(data.company,150),phone=clean(data.phone,80);
  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||!person||!company||!phone)return reply({error:"Missing or invalid contact details"},400,origin);
  if(!Array.isArray(data.cargo)||!data.cargo.length||data.cargo.length>30)return reply({error:"Invalid cargo"},400,origin);
- const registration=String(data.registrationNumber||"").toUpperCase().replace(/[\\s-]/g,""),companyCountry=String(data.companyCountry||"").toUpperCase();
- if(!/^[A-Z]{2}$/.test(companyCountry)||!registration||registration.length>40||(companyCountry==="DK"&&!/^\\d{8}$/.test(registration)))return reply({error:"Valid company registration number and country required"},400,origin);
+ const registration=String(data.registrationNumber||"").toUpperCase().replace(/[\s-]/g,""),companyCountry=String(data.companyCountry||"").toUpperCase();
+ if(!/^[A-Z]{2}$/.test(companyCountry)||!registration||registration.length>40||(companyCountry==="DK"&&!/^\d{8}$/.test(registration)))return reply({error:"Valid company registration number and country required"},400,origin);
  const attachments=Array.isArray(data.attachments)?data.attachments:[];
  if(attachments.length>3||attachments.some(a=>!a||typeof a.filename!=="string"||!/\.(pdf|jpe?g|png|docx?|xlsx?)$/i.test(a.filename)||typeof a.content!=="string"||a.content.length>2800000||!/^[A-Za-z0-9+/]+={0,2}$/.test(a.content)))return reply({error:"Invalid attachment"},400,origin);
  const lines=[
