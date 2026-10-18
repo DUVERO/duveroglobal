@@ -54,7 +54,7 @@ open=function(x){oldOpen(x);calcService=String(x.service||"air").toLowerCase();c
 };
 $("calcSave").onclick=async()=>{
  if(!selected)return;
- if(selected.status==="Quoted"){message("This quote was sent. Use Revise sale price first, then save the new calculation.");return}
+ if(selected.status==="Quoted"){message("This quotation was sent. Use the existing Revise sale price workflow to create a revised draft before recalculating.");return}
  if(calcItems.some(x=>!String(x.description||"").trim())){message("Every charge line needs a description.");return}
  try{
   const w=calcWeight();const result=await api("/admin/enquiries/"+selected.id+"/calculation",{method:"PUT",body:JSON.stringify({grossKg:w.gross,cbm:w.cbm,manualCW:$("calcManual").value,lines:calcItems})});
