@@ -100,3 +100,10 @@ $("setupItems").addEventListener("click",e=>{
  if(cid){const x=calcDefs.find(s=>String(s.id)===cid);if(!x)return;$("newChargeName").value=x.name;$("newChargeSection").value=x.section;$("newChargeBasis").value=x.basis;$("createCharge").textContent="Update charge line";$("createCharge").onclick=()=>calcUpdate("charges",{id:x.id,name:$("newChargeName").value,section:$("newChargeSection").value,basis:$("newChargeBasis").value,active:true});}
 });
 async function calcUpdate(kind,data){try{await api("/admin/"+(kind==="suppliers"?"suppliers":"charge-definitions"),{method:"PUT",body:JSON.stringify(data)});calcShowSetup(kind);message("Updated")}catch(e){message("Update failed: "+e.message)}}
+
+function calcGoTop(id){$("setupPanel").classList.add("hidden");$("editor").classList.add("hidden");$("finance").classList.add("hidden");$("sendPanel").classList.add("hidden");$("list").classList.remove("hidden");$(id).click()}
+for(const [top,old] of [["topQuotes","viewQuotes"],["topCustomers","viewCustomers"],["topArchive","viewArchive"],["topSuppliers","viewSuppliers"],["topCharges","viewCharges"],["topFactors","viewFactors"]])$(top).onclick=()=>calcGoTop(old);
+const calcNavSync=()=>{$("topNav").classList.toggle("hidden",!sessionToken)};
+const calcLoginButton=$("loginButton");calcLoginButton.addEventListener("click",()=>setTimeout(calcNavSync,500));
+$("refresh").addEventListener("click",()=>setTimeout(calcNavSync,500));
+calcNavSync();
