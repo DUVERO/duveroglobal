@@ -7,7 +7,8 @@ function activate(id){document.querySelectorAll("#topNav button").forEach(b=>b.s
 function navList(type){if(requireLogin())return;showList();byId("customerAddressBook")?.classList.add("hidden");byId("enquiries")?.classList.remove("hidden");byId("searchEnquiries")?.classList.remove("hidden");byId("searchEnquiries")?.previousElementSibling?.classList.remove("hidden");byId("statusFilter")?.closest(".grid")?.classList.remove("hidden");byId("archiveFilter").value=type==="archive"?"archived":"active";byId("viewQuotes").click();if(type==="archive"){byId("archiveFilter").value="archived";renderEnquiries()}activate(type==="archive"?"topArchive":"topQuotes");}
 byId("topQuotes").addEventListener("click",()=>navList("quotes"));
 byId("topArchive").addEventListener("click",()=>navList("archive"));
-for(const id of ["topCustomers","topSuppliers"])byId(id).addEventListener("click",()=>{if(requireLogin())return;activate(id)});
+byId("topCustomers").addEventListener("click",()=>{if(requireLogin())return;activate("topCustomers")});
+byId("topSuppliers").addEventListener("click",()=>{if(requireLogin())return;showList();byId("list").classList.add("hidden");byId("setupPanel").classList.remove("hidden");byId("setupTitle").textContent="Suppliers";byId("setupItems").textContent="Indlæser leverandører…";byId("setupForm").innerHTML="";activate("topSuppliers")});
 async function setup(kind){
  if(requireLogin())return;
  showList();byId("list").classList.add("hidden");byId("setupPanel").classList.remove("hidden");
