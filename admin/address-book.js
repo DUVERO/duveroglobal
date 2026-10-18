@@ -1,20 +1,21 @@
 "use strict";
 // Unified company address book for DUVERO suppliers and customers.
 const abFields=[["company","Company name"],["address","Street address"],["postcode","Postal code"],["city","City"],["country","Country"],["phone","Phone"],["email","Email"],["contact","Contact person"],["notes","Internal notes"]];
-let abKind="",abItems=[],abCurrent=null,abFilter="";
+let abKind="",abItems=[],abCurrent=null,abFilter="",abCompanyIdentities=[];
 const abNorm=s=>String(s||"").trim().toLocaleLowerCase().replace(/[^a-z0-9æøå]/g,"");
 const abField=(k,label,v="")=>'<div><label>'+esc(label)+'</label>'+(k==="notes"?'<textarea data-ab="'+k+'" rows="2">'+esc(v)+'</textarea>':'<input data-ab="'+k+'" value="'+esc(v)+'" placeholder="'+esc(label)+'">')+'</div>';
 function abHost(){return abKind==="supplier"?$("setupItems"):$("customerAddressBook")}
 function abBase(){
  const supplier=abKind==="supplier",existing=supplier?calcSuppliers.map(x=>({company:x.name,email:x.email||"",categories:x.categories||[],supplierId:x.id})):Array.from(new Map(records.map(x=>[abNorm(customerName(x)),{company:customerName(x),email:x.email||"",rfqs:records.filter(y=>customerName(y)===customerName(x)).length}])).values());
  const map=new Map(existing.map(x=>[abNorm(x.company),x]));
+ if(!supplier)for(const c of abCompanyIdentities){const key=abNorm(c.company_name),old=map.get(key)||{};map.set(key,{...old,company:c.company_name,country:c.country,registrationNumber:c.registration_number,companyId:c.id,contactsCount:c.contacts_count})}
  for(const a of abItems){const key=abNorm(a.company),old=map.get(key)||{};map.set(key,{...old,...a})}
  return [...map.values()].sort((a,b)=>a.company.localeCompare(b.company));
 }
 function abRender(){
  const host=abHost();if(!host)return;
  const filtered=abBase().filter(x=>[x.company,x.email,x.city,x.country,x.phone,x.contact].some(v=>String(v||"").toLocaleLowerCase().includes(abFilter.toLocaleLowerCase())));
- host.innerHTML='<div class="bar"><h3>Company address book</h3><span class="muted">'+filtered.length+' companies</span></div><label>Search company, city, email or phone</label><input id="abSearch" type="search" placeholder="Find a company..." value="'+esc(abFilter)+'"><div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;margin-top:14px;text-align:left"><thead><tr><th>Company</th><th>City / Country</th><th>Contact</th><th>Phone</th><th></th></tr></thead><tbody>'+filtered.map((x,i)=>'<tr style="border-top:1px solid #dbe6e9"><td style="padding:12px 5px"><strong>'+esc(x.company)+'</strong></td><td>'+esc([x.city,x.country].filter(Boolean).join(", "))+'</td><td>'+esc(x.contact||x.email||"")+'</td><td>'+esc(x.phone||"")+'</td><td><button type="button" class="secondary" data-ab-open="'+i+'">Open</button></td></tr>').join("")+'</tbody></table></div><div class="actions"><button type="button" id="abNew">+ Add company</button></div><div id="abEditor"></div>';
+ host.innerHTML='<div class="bar"><h3>Company address book</h3><span class="muted">'+filtered.length+' companies</span></div><label>Search company, city, email or phone</label><input id="abSearch" type="search" placeholder="Find a company..." value="'+esc(abFilter)+'"><div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;margin-top:14px;text-align:left"><thead><tr><th>Company</th><th>City / Country</th><th>Contact</th><th>Phone</th><th></th></tr></thead><tbody>'+filtered.map((x,i)=>'<tr style="border-top:1px solid #dbe6e9"><td style="padding:12px 5px"><strong>'+esc(x.company)+'</strong>'+(x.registrationNumber?'<small style="display:block">'+esc(x.country)+' · '+esc(x.registrationNumber)+'</small>':'')+'</td><td>'+esc([x.city,x.country].filter(Boolean).join(", "))+'</td><td>'+esc(x.contact||x.email||"")+'</td><td>'+esc(x.phone||"")+'</td><td><button type="button" class="secondary" data-ab-open="'+i+'">Open</button></td></tr>').join("")+'</tbody></table></div><div class="actions"><button type="button" id="abNew">+ Add company</button></div><div id="abEditor"></div>';
  $("abSearch").oninput=e=>{abFilter=e.target.value;abRender();$("abSearch").focus();$("abSearch").setSelectionRange(abFilter.length,abFilter.length)};
  host.querySelectorAll("[data-ab-open]").forEach(b=>b.onclick=()=>abEdit(filtered[Number(b.dataset.abOpen)]));
  host.querySelector("#abNew").addEventListener("click",e=>{e.preventDefault();abEdit(null)});
@@ -22,7 +23,8 @@ function abRender(){
 function abEdit(item){
  abCurrent=item;
  const v=item||{},el=$("abEditor");if(!el)return;
- el.innerHTML='<section class="panel" style="background:#f8fbfb"><div class="bar"><h3>'+(item?"Company details":"Add company")+'</h3><button type="button" class="secondary" id="abCancel">Close</button></div><div class="grid">'+abFields.map(([k,l])=>abField(k,l,v[k]||"")).join("")+'</div><p class="muted">One company record, regardless of branch or shipping origin.</p><button type="button" id="abSave">Save company details</button></section>';
+ el.innerHTML='<section class="panel" style="background:#f8fbfb"><div class="bar"><h3>'+(item?"Company details":"Add company")+'</h3><button type="button" class="secondary" id="abCancel">Close</button></div><div class="grid">'+abFields.map(([k,l])=>abField(k,l,v[k]||"")).join("")+'</div><p class="muted">One company record, regardless of branch or shipping origin.</p><button type="button" id="abSave">Save company details</button><div id="abContacts"></div></section>';
+ if(abKind==="customer"&&item?.companyId){api("/admin/customer-companies/"+item.companyId+"/contacts").then(r=>{const target=$("abContacts");if(target)target.innerHTML="<h4>Contacts ("+(r.items||[]).length+")</h4>"+(r.items||[]).map(c=>"<p>"+esc(c.full_name)+" · "+esc(c.email)+" · "+esc(c.phone)+"</p>").join("")}).catch(()=>{})}
  $("abCancel").onclick=()=>{el.innerHTML=""};
  $("abSave").onclick=abSave;
  el.scrollIntoView({behavior:"auto",block:"start"});
@@ -45,7 +47,8 @@ async function abSave(){
 async function abOpen(kind){
  abKind=kind;abFilter="";
  try{
-  const [book]=await Promise.all([api("/admin/address-book?kind="+kind),kind==="supplier"?calcLoadMasters():Promise.resolve()]);
+  const [book,identities]=await Promise.all([api("/admin/address-book?kind="+kind),kind==="supplier"?calcLoadMasters().then(()=>({items:[]})):api("/admin/customer-companies")]);
+  abCompanyIdentities=identities.items||[];
   abItems=book.items||[];
   if(kind==="customer"){$("customerAddressBook").classList.remove("hidden");$("enquiries").classList.add("hidden");$("list").querySelector(".grid").classList.add("hidden");$("list").querySelector("#searchEnquiries").classList.add("hidden");$("list").querySelector('label[for="searchEnquiries"]').classList.add("hidden")}
   abRender();
