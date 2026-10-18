@@ -159,7 +159,7 @@ async function adminRoute(request,env,origin,url){
 }
 if(request.method==="PUT"&&match[2]==="finance"){
  const input=await request.json();
- const parse=a=>(Array.isArray(a)?a:[]).slice(0,100).map(x=>({description:clean(x.description,150),supplier:clean(x.supplier,100),invoice_number:clean(x.invoice_number,100),amount:Number(x.amount)})).filter(x=>x.description&&Number.isFinite(x.amount)&&x.amount>=0&&x.amount<1e9);
+ const parse=a=>(Array.isArray(a)?a:[]).slice(0,100).map(x=>({description:clean(x.description,150),supplier:clean(x.supplier,100),invoice_number:clean(x.invoice_number,100),invoice_date:clean(x.invoice_date,10),checked:x.checked===true,amount:Number(x.amount)})).filter(x=>x.description&&Number.isFinite(x.amount)&&x.amount>=0&&x.amount<1e9);
  const costs=parse(input.cost_lines),invoices=parse(input.invoice_lines);
  const actual={pieces:Number(input.shipment_actual?.pieces)||0,weight:Number(input.shipment_actual?.weight)||0,cbm:Number(input.shipment_actual?.cbm)||0};
  const revise=input.revise_sale===true,reason=clean(input.reason,500);
