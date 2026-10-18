@@ -87,11 +87,19 @@ $("previewDesign").onclick=async()=>{
   const label=document.createElement("strong");label.textContent="Preview Quotation · "+selected.quote_number;
   const actions=document.createElement("div");actions.style.cssText="display:flex;gap:8px";
   const print=document.createElement("button");print.type="button";print.textContent="Print / Save PDF";print.style.cssText="padding:9px 14px;cursor:pointer";
+  const send=document.createElement("button");send.type="button";send.textContent="Send Quotation";send.style.cssText="padding:9px 14px;cursor:pointer;background:#008e8c;color:white;border:0;border-radius:5px";
   const close=document.createElement("button");close.type="button";close.textContent="Close preview";close.style.cssText="padding:9px 14px;cursor:pointer";
+  const sendPanel=$("sendPanel"),sendHome=sendPanel.parentNode,sendNext=sendPanel.nextSibling;
+  const restoreSend=()=>{sendPanel.classList.add("hidden");sendPanel.style.cssText="";if(sendNext&&sendNext.parentNode===sendHome)sendHome.insertBefore(sendPanel,sendNext);else sendHome.appendChild(sendPanel)};
+  const sendArea=document.createElement("div");sendArea.style.cssText="display:none;position:absolute;z-index:2;top:68px;right:12px;width:min(530px,calc(100% - 24px));max-height:calc(100% - 85px);overflow:auto;background:white;padding:14px;border-radius:9px;box-shadow:0 8px 35px #001c2b80";
+  send.onclick=()=>{sendArea.style.display="block";sendArea.appendChild(sendPanel);$("openSend").click()};
+  const originalCancel=$("cancelSend").onclick;
+  $("cancelSend").onclick=()=>{originalCancel?.();sendArea.style.display="none"};
+
   const frame=document.createElement("iframe");frame.title="DUVERO quotation preview";frame.style.cssText="width:100%;flex:1;min-height:0;background:white;border:0;border-radius:8px";frame.srcdoc=html;
   print.onclick=()=>{try{frame.contentWindow.focus();frame.contentWindow.print()}catch(e){message("Printing unavailable: "+e.message)}};
-  close.onclick=()=>overlay.remove();
-  actions.append(print,close);bar.append(label,actions);overlay.append(bar,frame);document.body.append(overlay);
+  close.onclick=()=>{restoreSend();overlay.remove()};
+  actions.append(print,send,close);bar.append(label,actions);overlay.append(bar,frame,sendArea);document.body.append(overlay);
   message("Quotation preview ready");
  }catch(e){message("Quotation preview failed during "+stage+": "+e.message)}
 };
