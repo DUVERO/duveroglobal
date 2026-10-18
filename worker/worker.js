@@ -34,7 +34,7 @@ function makeQuotePdf(d,company,person,email,phone,reference="",offerDetails=nul
  const vals=[i+1,c.type||c.size||"-",d.commodity||"-",[c.length,c.width,c.height].every(Boolean)?[c.length,c.width,c.height].join(" x "):"-",n,fmt(w),fmt(v),c.stack||"-"];vals.forEach((val,j)=>text(String(val).slice(0,j===2?17:j===3?21:12),xs[j],y-13,j===3?7:8));y-=27}
  room(38);fill(28,y-28,542,34);text("TOTAL",294,y-15,10,true);text(fmt(qty),xs[4],y-15,9,true);text(fmt(weight)+" kg",xs[5],y-15,9,true);text(fmt(cbm)+" m3",xs[6],y-15,9,true);y-=44;
  }
- room(245);top=y;
+ room(345);top=y;
  const additional=[["Ready date",d.ready],["Dangerous goods",d.danger],["UN number",d.un],["Tail lift",d.tailLift?"Required":"No"],["Remarks",d.details]];
  const customer=[["Company",company],["Registration",[d.companyCountry,d.registrationNumber].filter(Boolean).join(" ")],["Address",d.companyAddress],["Postal / city",[d.companyPostcode,d.companyCity].filter(Boolean).join(" ")],["Country",d.companyCountry],["Name",person],["Email",email],["Phone",phone]];
  const left=pair("Additional Information",additional,28,top),right=pair("Customer Details",customer,311,top);y=Math.min(left,right)-17;
