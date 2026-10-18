@@ -7,12 +7,14 @@ async function api(path,opts={}){const r=await fetch(API+path,{...opts,headers:{
 function message(s){$("status").textContent=s}
 const personalDomains=new Set(["gmail.com","googlemail.com","hotmail.com","hotmail.dk","outlook.com","outlook.dk","live.com","live.dk","msn.com","yahoo.com","icloud.com","me.com","mail.com","aol.com","proton.me","protonmail.com"]);
 function customerName(x){const domain=String(x.email||"").toLowerCase().split("@")[1]||"";if(!domain)return "Unknown customer";if(personalDomains.has(domain))return "Kontantkunder";return domain.replace(/\\.[^.]+$/,"")}
+let adminView="quotes";
 function renderEnquiries(){
  const q=$("searchEnquiries").value.trim().toLocaleLowerCase(),status=$("statusFilter").value,archive=$("archiveFilter").value;
  const filtered=records.filter(x=>{
  const text=[customerName(x),x.company,x.person,x.email,x.quote_number,x.service,x.origin,x.destination].join(" ").toLocaleLowerCase();
  return (!q||text.includes(q))&&(status==="all"||x.status===status)&&(archive==="all"||(archive==="archived"?Number(x.archived)===1:Number(x.archived)!==1));
  });
+ if(adminView==="customers"){const groups=new Map();for(const x of filtered){const name=customerName(x);if(!groups.has(name))groups.set(name,[]);groups.get(name).push(x)}$("resultCount").textContent=groups.size+" customers · "+filtered.length+" RFQs";$("enquiries").innerHTML=[...groups].sort((a,b)=>a[0].localeCompare(b[0])).map(([name,items])=>'<div class="item" data-customer="'+esc(name)+'"><strong>'+esc(name)+'</strong> · '+items.length+' RFQs<br><small>'+esc([...new Set(items.map(x=>x.email))].join(", ")) +'</small></div>').join("")||"No customers";return}
  $("resultCount").textContent=filtered.length+" enquiries";
  $("enquiries").innerHTML=filtered.length?filtered.map(x=>'<div class="item" data-id="'+esc(x.id)+'"><div class="bar"><div><strong>'+esc(customerName(x))+'</strong> · '+esc(x.company)+' <small class="muted">'+esc(x.quote_number)+'</small><br><small>'+esc(x.service)+' · '+esc(x.origin)+' → '+esc(x.destination)+'</small><br><small>'+esc(x.email)+' · '+esc(x.created_at||"")+(x.followup_date?' · Follow up: '+esc(x.followup_date):"")+'</small></div><span class="pill">'+esc(x.status)+(Number(x.archived)?" · Archived":"")+'</span></div></div>').join(""):"No enquiries match your filters";
 }
