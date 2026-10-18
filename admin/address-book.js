@@ -38,7 +38,7 @@ async function abSave(){
  else if(abCurrent?.company){const record=abItems.find(a=>abNorm(a.company)===abNorm(abCurrent.company));if(record)x.id=record.id}
  try{
   await api("/admin/address-book",{method:x.id?"PUT":"POST",body:JSON.stringify(x)});
-  if(abKind==="supplier"&&!calcSuppliers.some(s=>abNorm(s.name)===abNorm(x.company))){
+  if(abKind==="supplier"&&!(await api("/admin/suppliers")).items.some(s=>abNorm(s.name)===abNorm(x.company))){
    await api("/admin/suppliers",{method:"POST",body:JSON.stringify({name:x.company,email:x.email,categories:[]})});
   }
   await abOpen(abKind);message("Company saved in address book");
