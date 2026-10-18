@@ -43,6 +43,7 @@ async function adminRoute(request,env,origin,url){
  if(!await adminAuth(request,env))return jsonReply({error:"Login required"},401,origin);
  const db=env.DUVERO_DB;
  if(url.pathname==="/admin/enquiries"&&request.method==="GET"){const data=await db.prepare("SELECT * FROM enquiries ORDER BY created_at DESC,id DESC LIMIT 200").all();return jsonReply({enquiries:(data.results||[]).map(normalizeEnquiry)},200,origin)}
+ if(url.pathname==="/admin/suppliers"&&request.method==="GET"){const rows=await db.prepare("SELECT * FROM suppliers ORDER BY name").all();return jsonReply({items:(rows.results||[]).map(x=>({...x,categories:JSON.parse(x.categories||"[]")}))},200,origin)}
  const match=url.pathname.match(/^\/admin\/enquiries\/(\d+)(?:\/(preview|send|finance|tracking|emails))?$/);if(!match)return jsonReply({error:"Not found"},404,origin);
  const id=Number(match[1]);const record=await db.prepare("SELECT * FROM enquiries WHERE id=?").bind(id).first();if(!record)return jsonReply({error:"Enquiry not found"},404,origin);
  if(match[2]==="emails"&&request.method==="GET"){const result=await db.prepare("SELECT id,sender,recipient,subject,body,email_date,created_at FROM enquiry_emails WHERE enquiry_id=? ORDER BY id DESC LIMIT 100").bind(id).all();return jsonReply({emails:result.results||[]},200,origin)}
