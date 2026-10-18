@@ -159,7 +159,8 @@ async function saveEnquiries(env,data,company,person,email,phone){
  await db.prepare("INSERT OR IGNORE INTO customer_contacts(company_id,email,full_name,phone) VALUES(?,?,?,?)").bind(identity.id,email,person,phone).run();
  // Address book is a convenience index; identity and contacts remain authoritative.
  const existing=await db.prepare("SELECT id,country FROM address_book WHERE kind='customer' AND company=? COLLATE NOCASE").bind(company).first();
- if(!existing)await db.prepare("INSERT OR IGNORE INTO address_book(kind,company,country,email,contact,phone) VALUES('customer',?,?,?,?,?)").bind(company,country,email,person,phone).run();
+ if(!existing)await db.prepare("INSERT OR IGNORE INTO address_book(kind,company,country,address,postcode,city,email,contact,phone) VALUES('customer',?,?,?,?,?,?,?,?)").bind(company,country,clean(data.companyAddress,250),clean(data.companyPostcode,30),clean(data.companyCity,120),email,person,phone).run();
+ else if(!existing.country||existing.country===country)await db.prepare("UPDATE address_book SET address=CASE WHEN address='' THEN ? ELSE address END,postcode=CASE WHEN postcode='' THEN ? ELSE postcode END,city=CASE WHEN city='' THEN ? ELSE city END WHERE id=?").bind(clean(data.companyAddress,250),clean(data.companyPostcode,30),clean(data.companyCity,120),existing.id).run();
  const period=new Date().toISOString().slice(0,7),group_id=crypto.randomUUID();const origin=[data.originPostcode,data.originCity,data.originCountry].filter(Boolean).join(" "),destination=[data.destPostcode,data.destCity,data.destCountry].filter(Boolean).join(" ");
  const statements=[db.prepare("INSERT INTO quote_counters(period,last_number) VALUES (?,0) ON CONFLICT(period) DO NOTHING").bind(period)];
  for(let i=0;i<modes.length;i++)statements.push(db.prepare("UPDATE quote_counters SET last_number=last_number+1 WHERE period=?").bind(period));
@@ -206,6 +207,7 @@ export default {async fetch(request,env){
  if(!Array.isArray(data.cargo)||!data.cargo.length||data.cargo.length>30)return reply({error:"Invalid cargo"},400,origin);
  const registration=String(data.registrationNumber||"").toUpperCase().replace(/[\s-]/g,""),companyCountry=String(data.companyCountry||"").toUpperCase();
  if(!/^[A-Z]{2}$/.test(companyCountry)||!registration||registration.length>40||(companyCountry==="DK"&&!/^\d{8}$/.test(registration)))return reply({error:"Valid company registration number and country required"},400,origin);
+ if(!clean(data.companyAddress,250)||!clean(data.companyPostcode,30)||!clean(data.companyCity,120))return reply({error:"Company address, postal code and city required"},400,origin);
  const attachments=Array.isArray(data.attachments)?data.attachments:[];
  if(attachments.length>3||attachments.some(a=>!a||typeof a.filename!=="string"||!/\.(pdf|jpe?g|png|docx?|xlsx?)$/i.test(a.filename)||typeof a.content!=="string"||a.content.length>2800000||!/^[A-Za-z0-9+/]+={0,2}$/.test(a.content)))return reply({error:"Invalid attachment"},400,origin);
  const lines=[
@@ -213,7 +215,7 @@ export default {async fetch(request,env){
  ["Origin country",data.originCountryOther||data.originCountry],["Origin city",data.originCity],["Origin postal code",data.originPostcode],["Origin address",data.originAddress],["Origin party",data.originParty],
  ["Destination country",data.destCountryOther||data.destCountry],["Destination city",data.destCity],["Destination postal code",data.destPostcode],["Destination address",data.destAddress],["Destination party",data.destParty],["Tail-lift delivery",["sea","air","rail","road","multi"].includes(data.service)?(data.tailLift?"Required":"Not required"):""],
  ["Goods",data.commodity],["Ready date",data.ready],["Dangerous goods",data.danger],["UN number",data.un],["Remarks",data.details],
- ["Company",company],["Name",person],["Email",email],["Phone",phone]
+ ["Company",company],["Company address",data.companyAddress],["Company postal code",data.companyPostcode],["Company city",data.companyCity],["Company country",data.companyCountry],["Name",person],["Email",email],["Phone",phone]
  ].map(([k,v])=>k+": "+clean(v,1500));
  const cargo=data.cargo.map((c,i)=>"Line "+(i+1)+": "+["type","size","qty","weight","length","width","height","stack"].map(k=>k+"="+clean(c?.[k],100)).join(", ")).join("\n");
  const body=lines.join("\n")+"\n\nCargo:\n"+cargo;
