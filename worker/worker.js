@@ -3,17 +3,17 @@
 // Required variable: ALLOWED_ORIGIN=https://duveroglobal.com
 // The public website remains in test mode until explicitly enabled.
 
-function makeQuotePdf(d,company,person,email,phone,reference=""){
+function makeQuotePdf(d,company,person,email,phone,reference="",offerDetails=null){
  const cleanPdf=v=>String(v??"").replace(/[^\x20-\x7e]/g," ").replace(/\\/g,"\\\\").replace(/\(/g,"\\(").replace(/\)/g,"\\)").slice(0,110);
  const labels={sea:"Sea Freight - LCL",air:"Air Freight",road:"Road Freight - LTL",rail:"Rail Freight - LCL",courier:"Courier / Express"};
  const pages=[];let cmds=[],y=700;
  const text=(v,x,yy,size=10,bold=false)=>cmds.push("BT /"+(bold?"B":"R")+" "+size+" Tf 1 0 0 1 "+x+" "+yy+" Tm ("+cleanPdf(v)+") Tj ET");
- const start=()=>{cmds=["0.03 0.18 0.28 rg 0 724 595 88 re f","0 0.58 0.6 rg 0 720 595 4 re f"];cmds.push("1 1 1 rg");text("DUVERO",40,768,27,true);text("GLOBAL FREIGHT & LOGISTICS",41,746,9);text("FREIGHT ENQUIRY",388,765,14,true);if(reference)text(reference,388,744,10,true);cmds.push("0.04 0.19 0.28 rg");y=690};
+ const start=()=>{cmds=["0.03 0.18 0.28 rg 0 724 595 88 re f","0 0.58 0.6 rg 0 720 595 4 re f"];cmds.push("1 1 1 rg");text("DUVERO",40,768,27,true);text("GLOBAL FREIGHT & LOGISTICS",41,746,9);text(offerDetails?"FREIGHT QUOTATION":"FREIGHT ENQUIRY",offerDetails?360:388,765,14,true);if(reference)text(reference,388,744,10,true);cmds.push("0.04 0.19 0.28 rg");y=690};
  const next=()=>{pages.push(cmds.join("\n"));start()};
  const check=h=>{if(y-h<48)next()};
  const section=v=>{check(45);cmds.push("0.91 0.96 0.96 rg 36 "+(y-11)+" 523 28 re f","0.04 0.19 0.28 rg");text(v.toUpperCase(),46,y,11,true);y-=43};
  const row=(k,v)=>{if(v===undefined||v===null||String(v).trim()==="")return;check(25);cmds.push("0.34 0.42 0.47 rg");text(k,46,y,9);cmds.push("0.04 0.19 0.28 rg");text(v,207,y,9,true);y-=23};
- start();section("Shipment overview");row("Service",d.service==="multi"?"Compare Freight":labels[d.service]||d.service);
+ start();if(offerDetails){section("Our freight quotation");row("Quotation number",reference);row("Service",labels[d.service]||d.service);row("Transit time",offerDetails.transit);row("Validity",offerDetails.validity+" days");row("Currency",offerDetails.currency);for(const line of offerDetails.prices||[])row(line.description,offerDetails.currency+" "+Number(line.amount||0).toFixed(2));row("TOTAL",offerDetails.currency+" "+offerDetails.total.toFixed(2));row("Remarks / exclusions",offerDetails.remarks);section("Shipment details")}else section("Shipment overview");row("Service",d.service==="multi"?"Compare Freight":labels[d.service]||d.service);
  if(d.service==="multi")row("Compare modes",(Array.isArray(d.multiModes)?d.multiModes:[]).map(m=>labels[m]||m).join(" + "));
  row("Direction",d.direction);row("Incoterm",d.incoterm);
  if(d.service==="road")row("Road setup",String(d.roadType||"ltl").toUpperCase());
@@ -75,7 +75,7 @@ if(request.method==="PUT"&&!match[2]){const input=await request.json();const cur
   const d=normalizeEnquiry(record),prices=d.price_lines||[];if(!prices.length||!prices.some(x=>x.amount>0))return jsonReply({error:"Add prices before generating an offer"},400,origin);
   const total=prices.reduce((n,x)=>n+Number(x.amount||0),0);const summary=prices.map(x=>x.description+": "+d.currency+" "+Number(x.amount).toFixed(2)).join(" | ");
   const offer={...d.payload,service:d.service,details:"Quotation "+d.quote_number+" | "+summary+" | TOTAL "+d.currency+" "+total.toFixed(2)+" | Transit "+d.transit+" | Validity "+d.validity+" days | "+d.remarks};
-  const pdf=makeQuotePdf(offer,d.company,d.person,d.email,d.phone);
+  const pdf=makeQuotePdf(offer,d.company,d.person,d.email,d.phone,d.quote_number,{currency:d.currency,transit:d.transit,validity:d.validity,prices,total,remarks:d.remarks});
   if(match[2]==="preview")return jsonReply({pdf},200,origin);
   const input=await request.json();if(input.confirmed!==true)return jsonReply({error:"Recipient confirmation required"},400,origin);const recipient=clean(input.recipient,254),subject=clean(input.subject,180);if(!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(recipient)||!subject)return jsonReply({error:"Invalid recipient or subject"},400,origin);
   if(!env.RESEND_API_KEY)return jsonReply({error:"Email not configured"},503,origin);
