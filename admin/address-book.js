@@ -47,7 +47,7 @@ async function abSave(){
 async function abOpen(kind){
  abKind=kind;abFilter="";
  try{
-  const [book,identities]=await Promise.all([api("/admin/address-book?kind="+kind),kind==="supplier"?calcLoadMasters().then(()=>({items:[]})):api("/admin/customer-companies")]);
+  const [book,identities]=await Promise.all([api("/admin/address-book?kind="+kind),kind==="supplier"?Promise.resolve({items:[]}):api("/admin/customer-companies")]);
   abCompanyIdentities=identities.items||[];
   abItems=book.items||[];
   if(kind==="customer"){$("customerAddressBook").classList.remove("hidden");$("enquiries").classList.add("hidden");$("list").querySelector(".grid").classList.add("hidden");$("list").querySelector("#searchEnquiries").classList.add("hidden");$("list").querySelector('label[for="searchEnquiries"]').classList.add("hidden")}
